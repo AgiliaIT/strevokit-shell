@@ -1,0 +1,48 @@
+<!doctype html>
+<!--
+  No build step: the stylesheet and the script come from jsDelivr, pinned to an exact version with Subresource
+  Integrity. Replace each "sha384-…" with the hash listed in the release notes for that version.
+  With a Content Security Policy, allow script-src and style-src for https://cdn.jsdelivr.net (or host the two files
+  yourself) and connect-src for your realtime endpoint.
+-->
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Meeting</title>
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/@strevokit/shell@0.1.0/dist/styles.css"
+      integrity="sha384-…"
+      crossorigin="anonymous"
+    />
+    <script
+      src="https://cdn.jsdelivr.net/npm/@strevokit/shell@0.1.0/dist/strevokit-shell.min.js"
+      integrity="sha384-…"
+      crossorigin="anonymous"
+    ></script>
+  </head>
+  <body>
+    <header>…your navigation…</header>
+    <main id="call-area" style="height: 600px"></main>
+    <footer>…</footer>
+
+    <script>
+      // Your backend mints the join token (see backend-token.md); the API credential never reaches the browser.
+      fetch("/api/meetings/01JABCDEF0123456789ABCDEFG/join-token", { method: "POST", credentials: "include" })
+        .then((response) => {
+          if (!response.ok) throw new Error("Couldn't get a join token (HTTP " + response.status + ").");
+          return response.json();
+        })
+        .then(({ token }) => {
+          StrevokitShell.mount("#call-area", {
+            token,
+            realtimeUrl: "wss://realtime.example.com",
+            onClosed: (event) => console.info("meeting closed:", event.reason),
+          });
+        });
+
+      console.info("Strevokit shell", StrevokitShell.version);
+    </script>
+  </body>
+</html>

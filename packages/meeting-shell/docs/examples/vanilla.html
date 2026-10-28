@@ -1,0 +1,64 @@
+<!doctype html>
+<!--
+  Plain JavaScript with npm and a bundler (for example Vite, which processes this page's module script).
+  The page asks your own backend for a join token (see backend-token.md), then mounts the shell with mount(), or, with
+  ?style=markup, hands the token to the <strevokit-meeting> element already in the markup.
+-->
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Meeting</title>
+    <style>
+      .call {
+        height: 600px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Team meeting</h1>
+
+    <!-- mount() creates the element inside this container. -->
+    <section id="call-area" class="call"></section>
+
+    <!-- The element in markup stays idle (renders nothing) until it has a token. -->
+    <section class="call">
+      <strevokit-meeting id="meeting" appearance="system" realtime-url="wss://realtime.example.com"></strevokit-meeting>
+    </section>
+
+    <script type="module">
+      import { mount } from "@strevokit/shell";
+      import "@strevokit/shell/styles.css";
+
+      const params = new URLSearchParams(location.search);
+
+      async function fetchJoinToken() {
+        const response = await fetch(`/api/meetings/${encodeURIComponent(params.get("meeting"))}/join-token`, {
+          method: "POST",
+          credentials: "include",
+        });
+        if (!response.ok) throw new Error(`Couldn't get a join token (HTTP ${response.status}).`);
+        const { token } = await response.json();
+        return token;
+      }
+
+      const token = await fetchJoinToken();
+
+      if (params.get("style") === "markup") {
+        const meeting = document.getElementById("meeting");
+        meeting.addEventListener("svk-joined", (event) => console.info("joined as", event.detail.role));
+        meeting.addEventListener("svk-closed", (event) => console.info("meeting closed:", event.detail.reason));
+        meeting.token = token; // a property only: there is no token attribute
+      } else {
+        const shell = mount("#call-area", {
+          token,
+          realtimeUrl: "wss://realtime.example.com",
+          onJoined: (event) => console.info("joined as", event.role),
+          onClosed: (event) => console.info("meeting closed:", event.reason),
+        });
+        // shell.leave() leaves the meeting; shell.destroy() removes the UI and releases the camera and microphone.
+        window.addEventListener("pagehide", () => shell.destroy());
+      }
+    </script>
+  </body>
+</html>

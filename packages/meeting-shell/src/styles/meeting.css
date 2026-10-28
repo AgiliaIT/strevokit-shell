@@ -1,0 +1,870 @@
+/* @strevokit/shell meeting UI. Every rule is scoped to <strevokit-meeting>, so nothing outside the element is styled.
+   The --svk-* variables are the theming contract: their defaults have zero specificity, so any value you set on the
+   element (or an ancestor) wins. Everything else uses strong scoped selectors and a reset, so common page styles
+   (element rules, resets, inherited fonts) don't change the shell. Class names are internal and may change. */
+
+/* Theme variables: light by default, dark when asked for or when "system" follows a dark preference. */
+
+:where(strevokit-meeting) {
+  --svk-surface: #ffffff;
+  --svk-surface-raised: #f4f4f5;
+  --svk-text: #18181b;
+  --svk-text-muted: #52525b;
+  --svk-border: #71717a;
+  --svk-focus: #2563eb;
+  --svk-danger: #b91c1c;
+  --svk-danger-text: #ffffff;
+  --svk-on: #15803d;
+  --svk-off: #c2410c;
+  --svk-warning: #a16207;
+  --svk-accent: #2563eb;
+  --svk-accent-text: #ffffff;
+  --svk-tile: #27272a;
+  --svk-tile-text: #fafafa;
+  --svk-radius: 12px;
+  --svk-gap: 12px;
+  --svk-target: 44px;
+  --svk-font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+:where(strevokit-meeting[data-svk-appearance="dark"]) {
+  --svk-surface: #18181b;
+  --svk-surface-raised: #27272a;
+  --svk-text: #fafafa;
+  --svk-text-muted: #a1a1aa;
+  --svk-border: #a1a1aa;
+  --svk-focus: #60a5fa;
+  --svk-danger: #f87171;
+  --svk-danger-text: #18181b;
+  --svk-on: #4ade80;
+  --svk-off: #fb923c;
+  --svk-warning: #facc15;
+  --svk-accent: #60a5fa;
+  --svk-accent-text: #18181b;
+}
+
+@media (prefers-color-scheme: dark) {
+  :where(strevokit-meeting[data-svk-appearance="system"]) {
+    --svk-surface: #18181b;
+    --svk-surface-raised: #27272a;
+    --svk-text: #fafafa;
+    --svk-text-muted: #a1a1aa;
+    --svk-border: #a1a1aa;
+    --svk-focus: #60a5fa;
+    --svk-danger: #f87171;
+    --svk-danger-text: #18181b;
+    --svk-on: #4ade80;
+    --svk-off: #fb923c;
+    --svk-warning: #facc15;
+    --svk-accent: #60a5fa;
+    --svk-accent-text: #18181b;
+  }
+}
+
+/* Sizing: fills its container like a block element. Zero specificity, so your own sizing rules always win. */
+
+:where(strevokit-meeting) {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 360px;
+  container-type: inline-size;
+}
+
+/* The element: every inherited property the page could leak in is set here. */
+
+strevokit-meeting[data-svk-appearance] {
+  box-sizing: border-box;
+  background: var(--svk-surface);
+  color: var(--svk-text);
+  font-family: var(--svk-font);
+  font-size: 16px;
+  font-style: normal;
+  font-weight: 400;
+  line-height: 1.4;
+  letter-spacing: normal;
+  word-spacing: normal;
+  text-align: start;
+  text-indent: 0;
+  text-transform: none;
+  white-space: normal;
+  direction: ltr;
+  visibility: visible;
+  cursor: auto;
+}
+
+/* Everything the shell renders: page rules are undone first, then the rules below set what the shell needs. */
+
+strevokit-meeting[data-svk-appearance] [class*="svk-"] {
+  all: revert;
+  box-sizing: border-box;
+}
+
+/* The shell's internal elements that only group markup take no box of their own. */
+strevokit-meeting[data-svk-appearance] .svk-contents {
+  display: contents;
+}
+
+strevokit-meeting[data-svk-appearance] .svk-meeting {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  position: relative;
+}
+
+strevokit-meeting[data-svk-appearance] .svk-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+strevokit-meeting[data-svk-appearance] [class*="svk-"]:focus-visible {
+  outline: 2px solid var(--svk-focus);
+  outline-offset: 2px;
+}
+
+strevokit-meeting[data-svk-appearance] .svk-heading {
+  margin: 0;
+  font-size: 1.375rem;
+  font-weight: 600;
+}
+
+strevokit-meeting[data-svk-appearance] .svk-heading:focus {
+  outline: none;
+}
+
+strevokit-meeting[data-svk-appearance] .svk-heading:focus-visible {
+  outline: 2px solid var(--svk-focus);
+  outline-offset: 2px;
+}
+
+/* Icon geometry is set here rather than only as SVG attributes, which page styles (and the reset) would override. */
+strevokit-meeting[data-svk-appearance] .svk-icon {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Buttons */
+
+strevokit-meeting[data-svk-appearance] .svk-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: var(--svk-target);
+  min-height: var(--svk-target);
+  padding: 8px 14px;
+  border: 1px solid var(--svk-border);
+  border-radius: 999px;
+  background: var(--svk-surface-raised);
+  color: var(--svk-text);
+  font: inherit;
+  font-size: 0.9375rem;
+  cursor: pointer;
+  transition: background-color 120ms ease, border-color 120ms ease;
+}
+
+strevokit-meeting[data-svk-appearance] .svk-button:hover {
+  border-color: var(--svk-text-muted);
+}
+
+strevokit-meeting[data-svk-appearance] .svk-button:disabled,
+strevokit-meeting[data-svk-appearance] .svk-button[aria-disabled="true"] {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+strevokit-meeting[data-svk-appearance] .svk-button[aria-busy="true"] {
+  cursor: progress;
+}
+
+strevokit-meeting[data-svk-appearance] .svk-button-small {
+  min-height: var(--svk-target);
+  padding: 6px 12px;
+  font-size: 0.875rem;
+}
+
+strevokit-meeting[data-svk-appearance] .svk-button-primary,
+strevokit-meeting[data-svk-appearance] .svk-button-accent {
+  border-color: var(--svk-accent);
+  background: var(--svk-accent);
+  color: var(--svk-accent-text);
+  font-weight: 600;
+}
+
+strevokit-meeting[data-svk-appearance] .svk-button-danger {
+  border-color: var(--svk-danger);
+  background: var(--svk-danger);
+  color: var(--svk-danger-text);
+  font-weight: 600;
+}
+
+strevokit-meeting[data-svk-appearance] .svk-toggle .svk-state {
+  padding: 0 6px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+strevokit-meeting[data-svk-appearance] .svk-toggle[data-state="on"] {
+  border-color: var(--svk-on);
+  box-shadow: inset 0 0 0 1px var(--svk-on);
+}
+
+strevokit-meeting[data-svk-appearance] .svk-toggle[data-state="on"] .svk-icon,
+strevokit-meeting[data-svk-appearance] .svk-toggle[data-state="on"] .svk-state {
+  color: var(--svk-on);
+}
+
+strevokit-meeting[data-svk-appearance] .svk-toggle[data-state="off"] {
+  border-color: var(--svk-off);
+  border-style: dashed;
+}
+
+strevokit-meeting[data-svk-appearance] .svk-toggle[data-state="off"] .svk-icon,
+strevokit-meeting[data-svk-appearance] .svk-toggle[data-state="off"] .svk-state {
+  color: var(--svk-off);
+}
+
+strevokit-meeting[data-svk-appearance] .svk-count {
+  display: none;
+  font-weight: 600;
+}
+
+/* Pre-join */
+
+strevokit-meeting[data-svk-appearance] .svk-prejoin {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--svk-gap);
+  width: 100%;
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 16px;
+  overflow-y: auto;
+}
+
+strevokit-meeting[data-svk-appearance] .svk-preview {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+strevokit-meeting[data-svk-appearance] .svk-video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: var(--svk-tile);
+}
+
+strevokit-meeting[data-svk-appearance] .svk-preview .svk-video,
+strevokit-meeting[data-svk-appearance] .svk-preview-off {
+  aspect-ratio: 16 / 9;
+  border-radius: var(--svk-radius);
+}
+
+strevokit-meeting[data-svk-appearance] .svk-mirrored {
+  transform: scaleX(-1);
+}
+
+strevokit-meeting[data-svk-appearance] .svk-preview-off {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: var(--svk-tile);
+  color: var(--svk-tile-text);
+}
+
+strevokit-meeting[data-svk-appearance] .svk-meter-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 24px;
+  color: var(--svk-text-muted);
+  font-size: 0.875rem;
+}
+
+strevokit-meeting[data-svk-appearance] .svk-meter {
+  flex: none;
+  width: 96px;
+  height: 8px;
+  overflow: hidden;
+  border: 1px solid var(--svk-border);
+  border-radius: 999px;
+}
+
+strevokit-meeting[data-svk-appearance] .svk-meter-fill {
+  width: 100%;
+  height: 100%;
+  background: var(--svk-on);
+  transform-origin: left center;
+  transition: transform 66ms linear;
+}
+
+strevokit-meeting[data-svk-appearance] .svk-prejoin-toggles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+}
+
+strevokit-meeting[data-svk-appearance] .svk-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--svk-gap);
+}
+
+strevokit-meeting[data-svk-appearance] .svk-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  font-size: 0.875rem;
+}
+
+strevokit-meeting[data-svk-appearance] .svk-select {
+  width: 100%;
+  min-height: var(--svk-target);
+  padding: 8px 10px;
+  border: 1px solid var(--svk-border);
+  border-radius: 8px;
+  background: var(--svk-surface);
+  color: var(--svk-text);
+  font: inherit;
+}
+
+strevokit-meeting[data-svk-appearance] .svk-join {
+  align-self: center;
+  min-width: 200px;
+}
+
+strevokit-meeting[data-svk-appearance] .svk-join-error:empty {
+  display: none;
+}
+
+strevokit-meeting[data-svk-appearance] .svk-join-error {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--svk-danger);
+  border-radius: 8px;
+  background: var(--svk-surface-raised);
+}
+
+strevokit-meeting[data-svk-appearance] .svk-join-error-text {
+  margin: 0;
+  flex: 1 1 200px;
+}
+
+strevokit-meeting[data-svk-appearance] .svk-device-messages {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+strevokit-meeting[data-svk-appearance] .svk-device-message {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--svk-warning);
+  border-radius: 8px;
+  background: var(--svk-surface-raised);
+  font-size: 0.875rem;
+}
+
+strevokit-meeting[data-svk-appearance] .svk-device-message .svk-icon {
+  color: var(--svk-warning);
+}
+
+strevokit-meeting[data-svk-appearance] .svk-device-message-text {
+  margin: 0;
+  flex: 1 1 180px;
+}
+
+strevokit-meeting[data-svk-appearance] .svk-device-message-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* In the meeting */
+
+strevokit-meeting[data-svk-appearance] .svk-room {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+strevokit-meeting[data-svk-appearance] .svk-stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  padding: var(--svk-gap);
+  overflow: auto;
+}
+
+strevokit-meeting[data-svk-appearance] .svk-meeting-message {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 var(--svk-gap);
+  padding: 8px 12px;
+  border: 1px solid var(--svk-warning);
+  border-radius: 8px;
+  background: var(--svk-surface-raised);
+  color: var(--svk-text);
+  font-size: 0.875rem;
+}
+
+strevokit-meeting[data-svk-appearance] .svk-meeting-message .svk-icon {
+  flex: none;
+  color: var(--svk-warning);
+}
+
+strevokit-meeting[data-svk-appearance] .svk-meeting-message[data-tone="danger"] {
+  border-color: var(--svk-danger);
+}
+
+strevokit-meeting[data-svk-appearance] .svk-meeting-message[data-tone="danger"] .svk-icon {
+  color: var(--svk-danger);
+}
+
+strevokit-meeting[data-svk-appearance] .svk-meeting-message-text {
+  flex: 1 1 180px;
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+strevokit-meeting[data-svk-appearance] .svk-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+  gap: var(--svk-gap);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+strevokit-meeting[data-svk-appearance] .svk-tile {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border-radius: var(--svk-radius);
+  background: var(--svk-tile);
+  color: var(--svk-tile-text);
+}
+
+strevokit-meeting[data-svk-appearance] .svk-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+}
+
+strevokit-meeting[data-svk-appearance] .svk-initials {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  border: 2px solid var(--svk-tile-text);
+  border-radius: 50%;
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+strevokit-meeting[data-svk-appearance] .svk-tile-footer {
+  position: absolute;
+  inset: auto 8px 8px 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+strevokit-meeting[data-svk-appearance] .svk-tile-name {
+  min-width: 0;
+  padding: 2px 8px;
+  overflow: hidden;
+  border-radius: 6px;
+  background: var(--svk-tile);
+  color: var(--svk-tile-text);
+  font-size: 0.875rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+strevokit-meeting[data-svk-appearance] .svk-tile[data-variant="screen"] {
+  outline: 2px solid var(--svk-on);
+  outline-offset: -2px;
+}
+
+strevokit-meeting[data-svk-appearance] .svk-tile[data-variant="screen"] .svk-video {
+  object-fit: contain;
+}
+
+/* Screen share spotlight: while a share is active the shared screen fills the stage as the meeting focus and the
+   camera tiles sit in a strip below it. Without the attribute the default grid above applies unchanged. */
+strevokit-meeting[data-svk-appearance] .svk-tiles[data-layout="spotlight"] {
+  height: 100%;
+  grid-template-rows: minmax(0, 1fr);
+  align-content: start;
+}
+
+strevokit-meeting[data-svk-appearance] .svk-tiles[data-layout="spotlight"] .svk-tile[data-variant="screen"] {
+  grid-column: 1 / -1;
+  grid-row: 1;
+  aspect-ratio: auto;
+  height: 100%;
+  min-height: 0;
+}
+
+strevokit-meeting[data-svk-appearance] .svk-tiles[data-layout="spotlight"] .svk-tile[data-variant="camera"] {
+  max-height: 200px;
+}
+
+strevokit-meeting[data-svk-appearance] .svk-tile-label {
+  flex: none;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: var(--svk-tile);
+  color: var(--svk-tile-text);
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+strevokit-meeting[data-svk-appearance] .svk-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px;
+  border-radius: 6px;
+  background: var(--svk-tile);
+  color: var(--svk-tile-text);
+}
+
+strevokit-meeting[data-svk-appearance] .svk-tile-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: rgb(24 24 27 / 0.75);
+  color: var(--svk-tile-text);
+  font-weight: 600;
+}
+
+strevokit-meeting[data-svk-appearance] .svk-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: var(--svk-gap);
+  border-top: 1px solid var(--svk-border);
+  background: var(--svk-surface);
+}
+
+strevokit-meeting[data-svk-appearance] .svk-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+strevokit-meeting[data-svk-appearance] .svk-control-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+/* Device menu */
+
+strevokit-meeting[data-svk-appearance] .svk-menu {
+  position: relative;
+}
+
+strevokit-meeting[data-svk-appearance] .svk-menu-button {
+  padding: 8px;
+}
+
+strevokit-meeting[data-svk-appearance] .svk-menu-list {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  width: max-content;
+  min-width: 200px;
+  max-width: min(320px, calc(100cqw - 24px));
+  padding: 4px;
+  border: 1px solid var(--svk-border);
+  border-radius: 10px;
+  background: var(--svk-surface-raised);
+  transform: translateX(-50%);
+}
+
+strevokit-meeting[data-svk-appearance] .svk-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: var(--svk-target);
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--svk-text);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+strevokit-meeting[data-svk-appearance] .svk-menu-item:hover {
+  background: var(--svk-surface);
+}
+
+strevokit-meeting[data-svk-appearance] .svk-menu-item[aria-checked="true"] {
+  font-weight: 600;
+}
+
+strevokit-meeting[data-svk-appearance] .svk-menu-check {
+  display: inline-flex;
+  width: 20px;
+  color: var(--svk-on);
+}
+
+strevokit-meeting[data-svk-appearance] .svk-menu-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Participant list */
+
+strevokit-meeting[data-svk-appearance] .svk-participants {
+  position: absolute;
+  top: var(--svk-gap);
+  right: var(--svk-gap);
+  bottom: var(--svk-gap);
+  left: auto;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  width: min(340px, calc(100% - 2 * var(--svk-gap)));
+  margin: 0;
+  padding: 12px;
+  overflow-y: auto;
+  border: 1px solid var(--svk-border);
+  border-radius: var(--svk-radius);
+  background: var(--svk-surface-raised);
+  color: var(--svk-text);
+}
+
+strevokit-meeting[data-svk-appearance] .svk-participants-heading {
+  margin: 0 0 8px;
+  font-size: 1rem;
+}
+
+strevokit-meeting[data-svk-appearance] .svk-participant-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+strevokit-meeting[data-svk-appearance] .svk-participant {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px;
+  border-radius: 8px;
+  background: var(--svk-surface);
+}
+
+strevokit-meeting[data-svk-appearance] .svk-participant-name {
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+strevokit-meeting[data-svk-appearance] .svk-participant-meta,
+strevokit-meeting[data-svk-appearance] .svk-participant-media {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  color: var(--svk-text-muted);
+  font-size: 0.8125rem;
+}
+
+strevokit-meeting[data-svk-appearance] .svk-media-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+strevokit-meeting[data-svk-appearance] .svk-media-state .svk-icon {
+  width: 16px;
+  height: 16px;
+}
+
+strevokit-meeting[data-svk-appearance] .svk-media-state[data-state="on"] .svk-icon {
+  color: var(--svk-on);
+}
+
+strevokit-meeting[data-svk-appearance] .svk-media-state[data-state="off"] .svk-icon {
+  color: var(--svk-off);
+}
+
+/* Final */
+
+strevokit-meeting[data-svk-appearance] .svk-final {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  gap: 8px;
+  padding: 24px 16px;
+  text-align: center;
+}
+
+strevokit-meeting[data-svk-appearance] .svk-final-body {
+  margin: 0;
+  color: var(--svk-text-muted);
+}
+
+/* End meeting confirmation dialog */
+
+strevokit-meeting[data-svk-appearance] .svk-end-meeting-dialog {
+  position: fixed;
+  inset: 0;
+  margin: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: min(400px, calc(100% - 32px));
+  max-width: 400px;
+  padding: 24px;
+  border: 1px solid var(--svk-border);
+  border-radius: var(--svk-radius);
+  background: var(--svk-surface-raised);
+  color: var(--svk-text);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.28);
+  z-index: 100;
+}
+
+strevokit-meeting[data-svk-appearance] .svk-end-meeting-dialog:not([open]) {
+  display: none;
+}
+
+strevokit-meeting[data-svk-appearance] .svk-end-meeting-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(2px);
+}
+
+strevokit-meeting[data-svk-appearance] .svk-dialog-heading {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--svk-text);
+}
+
+strevokit-meeting[data-svk-appearance] .svk-dialog-body {
+  margin: 0;
+  font-size: 0.9375rem;
+  color: var(--svk-text-muted);
+}
+
+strevokit-meeting[data-svk-appearance] .svk-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+/* Narrow containers: icon-only controls (names stay for assistive technology), full-width participant sheet. */
+
+@container (max-width: 479px) {
+  strevokit-meeting[data-svk-appearance] .svk-toolbar .svk-label,
+  strevokit-meeting[data-svk-appearance] .svk-toolbar .svk-state {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  strevokit-meeting[data-svk-appearance] .svk-toolbar .svk-button {
+    padding: 8px 10px;
+  }
+
+  strevokit-meeting[data-svk-appearance] .svk-toolbar {
+    gap: 4px;
+  }
+
+  strevokit-meeting[data-svk-appearance] .svk-count {
+    display: inline;
+  }
+
+  strevokit-meeting[data-svk-appearance] .svk-participants {
+    inset: 0;
+    width: 100%;
+    border-radius: 0;
+  }
+
+  strevokit-meeting[data-svk-appearance] .svk-join {
+    align-self: stretch;
+    min-width: 0;
+  }
+
+  strevokit-meeting[data-svk-appearance] .svk-prejoin {
+    padding: 12px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  strevokit-meeting[data-svk-appearance] [class*="svk-"] {
+    transition: none;
+    animation: none;
+  }
+}

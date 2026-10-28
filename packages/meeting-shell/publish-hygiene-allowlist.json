@@ -1,0 +1,60 @@
+[
+  {
+    "file": "dist/index.js*",
+    "rule": "internal-host/loopback",
+    "pattern": "LOOPBACK_HOSTS = (?:/\\* @__PURE__ \\*/ )?new Set\\(\\[\"localhost\", \"127\\.0\\.0\\.1\"\\]\\)",
+    "reason": "Documented local-development exception: realtimeUrl may use ws:// only for loopback hosts."
+  },
+  {
+    "file": "dist/index.js*",
+    "rule": "internal-host/loopback",
+    "pattern": "realtimeUrl must be wss://host\\[:port\\] \\(ws:// only for localhost\\)",
+    "reason": "User-facing validation message describing the loopback ws:// exception."
+  },
+  {
+    "file": "dist/index.js*",
+    "rule": "secret/credential-assignment",
+    "pattern": "TOKEN_SUBPROTOCOL_PREFIX = \"strevokit\\.join-token\\.\"",
+    "reason": "Public protocol constant (WebSocket subprotocol prefix), not a credential."
+  },
+  {
+    "file": "dist/strevokit-shell.min.js*",
+    "rule": "internal-host/loopback",
+    "pattern": "[\\w$]+=new Set\\(\\[\"localhost\",\"127\\.0\\.0\\.1\"\\]\\)",
+    "reason": "Documented local-development exception: realtimeUrl may use ws:// only for loopback hosts."
+  },
+  {
+    "file": "dist/strevokit-shell.min.js*",
+    "rule": "internal-host/loopback",
+    "pattern": "realtimeUrl must be wss://host\\[:port\\] \\(ws:// only for localhost\\)",
+    "reason": "User-facing validation message describing the loopback ws:// exception."
+  },
+  {
+    "scope": "tree",
+    "file": "packages/meeting-shell/publish-hygiene-allowlist.json",
+    "rule": "internal-host/loopback",
+    "pattern": "(?<=\\\\\"|only for |`|\\(\\?:)local[h]ost(?=\\\\\"|\\\\\\\\\\)|` and|\\|127)",
+    "reason": "The loopback ws:// exception patterns above quote the approved loopback text; other loopback mentions here are still flagged."
+  },
+  {
+    "scope": "tree",
+    "file": "packages/meeting-shell/scripts/check-publish-hygiene.mjs",
+    "rule": "internal-host/loopback",
+    "pattern": "name: \"loopback\", pattern: /.*/ \\},$",
+    "reason": "The scanner's own rule definition."
+  },
+  {
+    "scope": "tree",
+    "file": "packages/meeting-shell/scripts/check-publish-hygiene.mjs",
+    "rule": "internal-note/marker",
+    "pattern": "name: \"marker\", pattern: /.*/ \\},$",
+    "reason": "The scanner's own rule definition."
+  },
+  {
+    "scope": "tree",
+    "file": "packages/meeting-shell/scripts/check-publish-hygiene.mjs",
+    "rule": "internal-note/profanity",
+    "pattern": "name: \"profanity\", pattern: /.*/i \\},$",
+    "reason": "The scanner's own rule definition."
+  }
+]

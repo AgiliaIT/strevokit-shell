@@ -1,0 +1,87 @@
+{
+  "name": "@strevokit/shell",
+  "version": "0.3.0",
+  "description": "Embed a ready-made Strevokit meeting UI in any web app: one element, any framework.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AgiliaIT/strevokit-shell.git",
+    "directory": "packages/meeting-shell"
+  },
+  "homepage": "https://github.com/AgiliaIT/strevokit-shell/tree/main/packages/meeting-shell#readme",
+  "bugs": {
+    "url": "https://github.com/AgiliaIT/strevokit-shell/issues"
+  },
+  "type": "module",
+  "sideEffects": [
+    "*.css",
+    "./dist/index.js",
+    "./dist/strevokit-shell.min.js"
+  ],
+  "engines": {
+    "node": ">=22.12"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./styles.css": "./dist/styles.css",
+    "./package.json": "./package.json"
+  },
+  "jsdelivr": "./dist/strevokit-shell.min.js",
+  "unpkg": "./dist/strevokit-shell.min.js",
+  "files": [
+    "dist/index.js",
+    "dist/index.js.map",
+    "dist/index.d.ts",
+    "dist/strevokit-shell.min.js",
+    "dist/strevokit-shell.min.js.map",
+    "dist/styles.css",
+    "README.md",
+    "CHANGELOG.md",
+    "docs"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "sdk:link": "node scripts/sdk-link.mjs",
+    "sdk:install": "node scripts/sdk-link.mjs --published",
+    "build": "node scripts/build.mjs",
+    "typecheck": "tsc -p tsconfig.test.json",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "api:check": "api-extractor run",
+    "api:update": "node scripts/build.mjs --update-api",
+    "check:surface": "node scripts/check-surface.mjs",
+    "check:docs": "node scripts/check-docs.mjs",
+    "check:css": "node scripts/check-css.mjs",
+    "check:size": "node scripts/check-size.mjs",
+    "check:release": "node scripts/check-release.mjs",
+    "pack:smoke": "node scripts/pack-smoke.mjs",
+    "check:publish-hygiene": "node scripts/check-publish-hygiene.mjs"
+  },
+  "dependencies": {
+    "lit": "^3.3.0"
+  },
+  "strevokitSdk": "^0.6.0",
+  "devDependencies": {
+    "@microsoft/api-extractor": "^7.59.4",
+    "@testing-library/dom": "^10.4.2",
+    "@testing-library/jest-dom": "^7.0.1",
+    "@testing-library/user-event": "^14.6.7",
+    "@types/node": "^22.20.5",
+    "axe-core": "^4.14.0",
+    "esbuild": "^0.28.2",
+    "eslint": "^9.39.5",
+    "eslint-plugin-lit": "^2.3.1",
+    "eslint-plugin-lit-a11y": "^5.1.1",
+    "jsdom": "^30.1.2",
+    "postcss": "^8.5.29",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.71.1",
+    "vite": "^8.3.3",
+    "vitest": "^5.0.3"
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "module": {
+    "maxGzipBytes": 49152
+  },
+  "cdn": {
+    "maxGzipBytes": 57344
+  }
+}
