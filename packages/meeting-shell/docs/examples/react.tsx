@@ -1,7 +1,7 @@
 // React 19: use <strevokit-meeting> directly in JSX, or call mount() in an effect. React 19 sets `token` and
 // `appearance` as properties (the element defines them), passes `realtime-url` as an attribute, and binds
 // `onsvk-joined` / `onsvk-closed` to the element's events.
-// The page asks your own backend for a join token (see backend-token.md).
+// The page asks your own backend for a join token (see backend-token.md and ../backend-api.md).
 import { useEffect, useRef, useState, type DetailedHTMLProps, type HTMLAttributes } from "react";
 import {
   mount,

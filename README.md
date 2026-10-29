@@ -51,12 +51,14 @@ Each release is served by jsDelivr from npm. The release notes list the `sha384`
 
 ## Documentation
 
-The quick start, styling, and security notes are in the [package README](./packages/meeting-shell/README.md). See also
-the [API reference](./packages/meeting-shell/docs/api-reference.md), the
+The quick start, styling, and security notes are in the [package README](./packages/meeting-shell/README.md). Backend
+routes for create meeting, authorize participants, and join tokens are in the
+[Backend API](./packages/meeting-shell/docs/backend-api.md). See also the
+[API reference](./packages/meeting-shell/docs/api-reference.md), the
 [theming guide](./packages/meeting-shell/docs/theming.md), the
 [accessibility statement](./packages/meeting-shell/docs/accessibility.md), and the
 [examples](./packages/meeting-shell/docs/examples/) for plain JavaScript, the CDN, React, Vue, Angular, and a backend
-that mints join tokens.
+that creates meetings, authorizes participants, and mints join tokens.
 
 ## Repository status
 

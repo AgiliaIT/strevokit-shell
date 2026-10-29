@@ -28,7 +28,7 @@
     <footer>…</footer>
 
     <script>
-      // Your backend mints the join token (see backend-token.md); the API credential never reaches the browser.
+      // Your backend mints the join token (see backend-token.md and ../backend-api.md); the API credential never reaches the browser.
       fetch("/api/meetings/01JABCDEF0123456789ABCDEFG/join-token", { method: "POST", credentials: "include" })
         .then((response) => {
           if (!response.ok) throw new Error("Couldn't get a join token (HTTP " + response.status + ").");

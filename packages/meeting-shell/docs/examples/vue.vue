@@ -7,7 +7,7 @@
     });
 
   Bind the join token with `.prop` so Vue sets the property: there is no token attribute.
-  The page asks your own backend for a join token (see backend-token.md).
+  The page asks your own backend for a join token (see backend-token.md and ../backend-api.md).
 -->
 <script setup lang="ts">
 import { onMounted, ref } from "vue";

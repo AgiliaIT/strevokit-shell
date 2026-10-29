@@ -7,6 +7,12 @@ the meeting SDK version built into it, and lists changes to the documented `--sv
 
 ## [Unreleased]
 
+### Documentation
+
+- Backend API guide covering `POST /v1/meetings`, `POST /v1/meetings/{public_id}/participants`,
+  `POST /v1/meetings/{public_id}/join-token`, and related embed-origin / get / end routes; backend example expanded
+  beyond join-token-only.
+
 ## [0.3.0]
 
 Bundles `@strevokit/meeting-sdk` 0.6.0; the only runtime dependency is still Lit 3 (`lit` `^3.3.0`).

@@ -1,6 +1,6 @@
 // Angular (standalone component). CUSTOM_ELEMENTS_SCHEMA lets the template use <strevokit-meeting>; Angular binds
 // [token] to the element's property and (svk-closed) to its event.
-// The page asks your own backend for a join token (see backend-token.md).
+// The page asks your own backend for a join token (see backend-token.md and ../backend-api.md).
 import { HttpClient } from "@angular/common/http";
 import { Component, CUSTOM_ELEMENTS_SCHEMA, inject, input, signal, type OnInit } from "@angular/core";
 import "@strevokit/shell";

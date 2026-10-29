@@ -1,6 +1,6 @@
 // React 18: React 18 passes every JSX prop to a custom element as an attribute, and the join token must be a
 // property, so create the shell with mount() in an effect and destroy it in the cleanup.
-// The page asks your own backend for a join token (see backend-token.md).
+// The page asks your own backend for a join token (see backend-token.md and ../backend-api.md).
 import { useEffect, useRef } from "react";
 import { mount, type MeetingShellAppearance, type MeetingShellCloseReason, type ShellHandle } from "@strevokit/shell";
 import "@strevokit/shell/styles.css";
