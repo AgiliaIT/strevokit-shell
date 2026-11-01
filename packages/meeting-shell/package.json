@@ -1,6 +1,6 @@
 {
   "name": "@strevokit/shell",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Embed a ready-made Strevokit meeting UI in any web app: one element, any framework.",
   "license": "Apache-2.0",
   "repository": {

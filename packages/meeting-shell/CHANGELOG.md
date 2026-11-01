@@ -7,6 +7,16 @@ the meeting SDK version built into it, and lists changes to the documented `--sv
 
 ## [Unreleased]
 
+## [0.3.1]
+
+Bundles `@strevokit/meeting-sdk` 0.6.0; the only runtime dependency is still Lit 3 (`lit` `^3.3.0`).
+No changes to the documented `--svk-*` variables.
+
+### Fixed
+
+- Solo participant camera tile no longer overflows the stage height on short/wide host containers; the tile stays
+  16:9, centers in the stage, and narrows when needed so the shell does not show an unnecessary scrollbar.
+
 ### Documentation
 
 - Backend API guide covering `POST /v1/meetings`, `POST /v1/meetings/{public_id}/participants`,
