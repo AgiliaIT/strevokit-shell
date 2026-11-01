@@ -425,6 +425,8 @@ strevokit-meeting[data-svk-appearance] .svk-room {
 
 strevokit-meeting[data-svk-appearance] .svk-stage {
   position: relative;
+  display: flex;
+  flex-direction: column;
   flex: 1;
   min-height: 0;
   padding: var(--svk-gap);
@@ -467,11 +469,29 @@ strevokit-meeting[data-svk-appearance] .svk-meeting-message-text {
 
 strevokit-meeting[data-svk-appearance] .svk-tiles {
   display: grid;
+  flex: 1 1 auto;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
   gap: var(--svk-gap);
   margin: 0;
   padding: 0;
   list-style: none;
+  min-height: 0;
+}
+
+/* Solo: keep 16:9 but fit inside the stage (center and narrow when the box is short). */
+strevokit-meeting[data-svk-appearance] .svk-tiles[data-count="1"] {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  container-type: size;
+}
+
+strevokit-meeting[data-svk-appearance] .svk-tiles[data-count="1"] .svk-tile {
+  width: min(100cqw, calc(100cqh * 16 / 9));
+  max-width: 100%;
+  max-height: 100cqh;
+  height: auto;
+  aspect-ratio: 16 / 9;
 }
 
 strevokit-meeting[data-svk-appearance] .svk-tile {

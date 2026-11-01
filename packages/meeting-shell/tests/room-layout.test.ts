@@ -9,12 +9,22 @@ function tilesList(): HTMLUListElement {
 }
 
 describe("room layout", () => {
+  it("marks a solo tile list with data-count 1 and no spotlight layout", async () => {
+    const shell = await createShell();
+    await joinMeeting(shell);
+    await shell.settle();
+    const list = tilesList();
+    expect(list).toHaveAttribute("data-count", "1");
+    expect(list).not.toHaveAttribute("data-layout");
+  });
+
   it("uses the default grid while nobody is sharing", async () => {
     const shell = await createShell();
     await joinMeeting(shell);
     shell.engines.last.addParticipant(participant("remote-1", "Grace Hopper"));
     await shell.settle();
     const list = tilesList();
+    expect(list).toHaveAttribute("data-count", "2");
     expect(list).not.toHaveAttribute("data-layout");
   });
 
