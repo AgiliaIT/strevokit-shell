@@ -74,7 +74,7 @@ function screenTileName(participant: ParticipantView): string {
 
 /**
  * One participant's video, or their initials and name while the camera is off. With `variant` "screen" it shows the
- * participant's shared screen instead, unmirrored. The element is the list item.
+ * participant's shared screen instead, unmirrored and without a visible name. The element is the list item.
  */
 export class SvkVideoTile extends LitElement {
   static override properties = {
@@ -135,11 +135,7 @@ export class SvkVideoTile extends LitElement {
   #renderScreen(participant: ParticipantView): TemplateResult | typeof nothing {
     const stream = participant.screenStream;
     if (!stream) return nothing;
-    return html`${streamVideo(stream, false)}
-      <div class="svk-tile-footer">
-        <span class="svk-tile-name">${tileName(participant)}</span>
-        <span class="svk-tile-label">${LABELS.sharedScreen}</span>
-      </div>`;
+    return streamVideo(stream, false);
   }
 
   #renderOverlay(participant: ParticipantView): TemplateResult | typeof nothing {

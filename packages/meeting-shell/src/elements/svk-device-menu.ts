@@ -9,19 +9,31 @@ import { uniqueId } from "./ids.js";
 export class SvkDeviceMenu extends LitElement {
   static override properties = {
     label: { attribute: false },
+    caption: { attribute: false },
+    icon: { attribute: false },
     options: { attribute: false },
     currentId: { attribute: false },
+    selectChecked: { attribute: false },
     onSelect: { attribute: false },
+    onOpen: { attribute: false },
     open: { state: true },
     focusIndex: { state: true },
   };
 
   /** Accessible name of the menu button and the menu, for example "Choose camera". */
   declare label: string;
+  /** Visible words on the trigger. Empty leaves the chevron-only button. */
+  declare caption: string;
+  /** Icon shown before `caption`. Unused when `caption` is empty. */
+  declare icon: TemplateResult | null;
   declare options: readonly DeviceOption[];
   /** The device marked as current; `null` marks the first option. */
   declare currentId: string | null;
+  /** When set, choosing the device that is already checked still reports that choice. */
+  declare selectChecked: boolean;
   declare onSelect: ((option: DeviceOption) => void) | null;
+  /** Refreshes the device list before the menu opens. The menu waits for it. */
+  declare onOpen: (() => void | Promise<void>) | null;
   declare protected open: boolean;
   declare protected focusIndex: number;
 
@@ -30,9 +42,13 @@ export class SvkDeviceMenu extends LitElement {
   constructor() {
     super();
     this.label = "";
+    this.caption = "";
+    this.icon = null;
     this.options = [];
     this.currentId = null;
+    this.selectChecked = false;
     this.onSelect = null;
+    this.onOpen = null;
     this.open = false;
     this.focusIndex = 0;
   }
@@ -68,10 +84,11 @@ export class SvkDeviceMenu extends LitElement {
 
   protected override render(): TemplateResult {
     const checkedIndex = this.#checkedIndex();
+    const labeled = this.caption !== "";
     return html`<div class="svk-menu">
       <button
         type="button"
-        class="svk-button svk-menu-button"
+        class=${labeled ? "svk-button svk-menu-button svk-menu-button-labeled" : "svk-button svk-menu-button"}
         aria-label=${this.label}
         title=${this.label}
         aria-haspopup="menu"
@@ -81,6 +98,8 @@ export class SvkDeviceMenu extends LitElement {
         @click=${this.#onTriggerClick}
         @keydown=${this.#onTriggerKeyDown}
       >
+        ${labeled ? (this.icon ?? nothing) : nothing}
+        ${labeled ? html`<span class="svk-label">${this.caption}</span>` : nothing}
         ${chevronIcon()}
       </button>
       ${this.open
@@ -128,6 +147,15 @@ export class SvkDeviceMenu extends LitElement {
     this.open = true;
   }
 
+  /** Lists devices again, then opens on the current item or the end of the refreshed list. */
+  #openAfterRefresh(atEnd: boolean): void {
+    void Promise.resolve(this.onOpen?.()).then(() => {
+      if (!this.isConnected) return;
+      const index = atEnd ? Math.max(0, this.options.length - 1) : this.#checkedIndex();
+      this.#openAt(index);
+    });
+  }
+
   #close(returnFocus: boolean): void {
     this.open = false;
     if (returnFocus) this.#trigger()?.focus();
@@ -135,20 +163,20 @@ export class SvkDeviceMenu extends LitElement {
 
   #onTriggerClick = (): void => {
     if (this.open) this.#close(false);
-    else this.#openAt(this.#checkedIndex());
+    else this.#openAfterRefresh(false);
   };
 
   #onTriggerKeyDown = (event: KeyboardEvent): void => {
     if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
     event.preventDefault();
-    this.#openAt(event.key === "ArrowUp" ? this.options.length - 1 : this.#checkedIndex());
+    this.#openAfterRefresh(event.key === "ArrowUp");
   };
 
   #onItemClick = (event: MouseEvent): void => {
     const index = this.#items().indexOf(event.currentTarget as HTMLButtonElement);
     const option = this.options[index];
     this.#close(true);
-    if (option && index !== this.#checkedIndex()) this.onSelect?.(option);
+    if (option && (this.selectChecked || index !== this.#checkedIndex())) this.onSelect?.(option);
   };
 
   #onItemKeyDown = (event: KeyboardEvent): void => {

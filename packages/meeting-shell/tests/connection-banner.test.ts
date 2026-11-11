@@ -2,8 +2,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { BannerVariant } from "../src/copy.js";
 import { ConnectionBanner, SHOW_AFTER_MS, STABLE_MS, type BannerEffect } from "../src/errors/connectionBanner.js";
 
-const RECONNECTING = "Connection lost — reconnecting…";
-const RECONNECTING_OFFLINE = "Connection lost — reconnecting… Check your internet connection.";
+const RECONNECTING = "Meeting connection lost — reconnecting…";
+const PEER_RECONNECTING = "Audio and video interrupted — reconnecting…";
+const RECONNECTING_OFFLINE = "Meeting connection lost — reconnecting… Check your internet connection.";
 const FAILED_RECONNECT = "Audio and video couldn't reconnect. Leave the meeting, then join again.";
 const FAILED_CONNECT = "Audio and video couldn't connect. Leave the meeting, then join again.";
 
@@ -47,13 +48,13 @@ describe("ConnectionBanner", () => {
     expect(effects).toEqual([]);
   });
 
-  it("shows reconnecting once the interruption lasts the threshold, announcing and reporting once", () => {
+  it("shows peer reconnecting once the interruption lasts the threshold, announcing and reporting once", () => {
     const { banner, changes, announcements, effects } = connectedBanner();
     banner.participantStatus("remote-1", "interrupted");
     vi.advanceTimersByTime(SHOW_AFTER_MS);
-    expect(banner.variant).toBe("reconnecting");
-    expect(changes).toEqual(["reconnecting"]);
-    expect(announcements).toEqual([RECONNECTING]);
+    expect(banner.variant).toBe("peer_reconnecting");
+    expect(changes).toEqual(["peer_reconnecting"]);
+    expect(announcements).toEqual([PEER_RECONNECTING]);
     expect(effects).toEqual([{ type: "failure", code: "media_interrupted" }]);
   });
 
@@ -66,7 +67,7 @@ describe("ConnectionBanner", () => {
     const { banner } = connectedBanner();
     banner.participantStatus("remote-1", "connecting");
     vi.advanceTimersByTime(SHOW_AFTER_MS);
-    expect(banner.variant).toBe("reconnecting");
+    expect(banner.variant).toBe("peer_reconnecting");
   });
 
   it("clears after a stable period with one Reconnected and a recovery effect", () => {
@@ -76,11 +77,11 @@ describe("ConnectionBanner", () => {
     vi.advanceTimersByTime(500);
     banner.participantStatus("remote-1", "connected");
     vi.advanceTimersByTime(STABLE_MS - 1);
-    expect(banner.variant).toBe("reconnecting");
+    expect(banner.variant).toBe("peer_reconnecting");
     vi.advanceTimersByTime(1);
     expect(banner.variant).toBeNull();
-    expect(changes).toEqual(["reconnecting", null]);
-    expect(announcements).toEqual([RECONNECTING, "Reconnected"]);
+    expect(changes).toEqual(["peer_reconnecting", null]);
+    expect(announcements).toEqual([PEER_RECONNECTING, "Reconnected"]);
     expect(effects).toEqual([
       { type: "failure", code: "media_interrupted" },
       { type: "recovery", interruptedMs: 500 + STABLE_MS },
@@ -97,11 +98,11 @@ describe("ConnectionBanner", () => {
       banner.participantStatus("remote-1", "interrupted");
       vi.advanceTimersByTime(STABLE_MS / 2);
     }
-    expect(changes).toEqual(["reconnecting"]);
+    expect(changes).toEqual(["peer_reconnecting"]);
     banner.participantStatus("remote-1", "connected");
     vi.advanceTimersByTime(STABLE_MS);
-    expect(changes).toEqual(["reconnecting", null]);
-    expect(announcements).toEqual([RECONNECTING, "Reconnected"]);
+    expect(changes).toEqual(["peer_reconnecting", null]);
+    expect(announcements).toEqual([PEER_RECONNECTING, "Reconnected"]);
     expect(effects.filter((effect) => effect.type === "failure")).toHaveLength(1);
     expect(effects.filter((effect) => effect.type === "recovery")).toHaveLength(1);
   });
@@ -122,13 +123,13 @@ describe("ConnectionBanner", () => {
     expect(announcements).toEqual([FAILED_CONNECT]);
   });
 
-  it("goes from reconnecting to failed with a new announcement and report", () => {
+  it("goes from peer reconnecting to failed with a new announcement and report", () => {
     const { banner, changes, announcements, effects } = connectedBanner();
     banner.participantStatus("remote-1", "interrupted");
     vi.advanceTimersByTime(SHOW_AFTER_MS);
     banner.participantStatus("remote-1", "failed");
-    expect(changes).toEqual(["reconnecting", "failed_reconnect"]);
-    expect(announcements).toEqual([RECONNECTING, FAILED_RECONNECT]);
+    expect(changes).toEqual(["peer_reconnecting", "failed_reconnect"]);
+    expect(announcements).toEqual([PEER_RECONNECTING, FAILED_RECONNECT]);
     expect(effects.map((effect) => effect.type === "failure" && effect.code)).toEqual([
       "media_interrupted",
       "media_connection_failed",
@@ -145,12 +146,12 @@ describe("ConnectionBanner", () => {
     expect(effects.at(-1)).toEqual({ type: "recovery", interruptedMs: STABLE_MS });
   });
 
-  it("goes from failed back to reconnecting with a new announcement and report", () => {
+  it("goes from failed back to peer reconnecting with a new announcement and report", () => {
     const { banner, changes, announcements, effects } = connectedBanner();
     banner.participantStatus("remote-1", "failed");
     banner.participantStatus("remote-1", "interrupted");
-    expect(changes).toEqual(["failed_reconnect", "reconnecting"]);
-    expect(announcements).toEqual([FAILED_RECONNECT, RECONNECTING]);
+    expect(changes).toEqual(["failed_reconnect", "peer_reconnecting"]);
+    expect(announcements).toEqual([FAILED_RECONNECT, PEER_RECONNECTING]);
     expect(effects.map((effect) => effect.type === "failure" && effect.code)).toEqual([
       "media_connection_failed",
       "media_interrupted",
@@ -168,9 +169,9 @@ describe("ConnectionBanner", () => {
     expect(effects).toEqual([{ type: "failure", code: "browser_offline" }]);
   });
 
-  it("switches between the reconnecting variants without announcing or reporting", () => {
+  it("keeps meeting-service ↔ offline switches quiet", () => {
     const { banner, changes, announcements, effects } = connectedBanner();
-    banner.participantStatus("remote-1", "interrupted");
+    banner.meetingServiceStatus("reconnecting");
     vi.advanceTimersByTime(SHOW_AFTER_MS);
     banner.network(false);
     expect(banner.variant).toBe("reconnecting_offline");
@@ -181,14 +182,56 @@ describe("ConnectionBanner", () => {
     expect(effects).toHaveLength(1);
   });
 
+  it("announces when audio and video interruption replaces meeting-service recovery", () => {
+    const { banner, announcements, effects } = connectedBanner();
+    banner.participantStatus("remote-1", "interrupted");
+    banner.meetingServiceStatus("reconnecting");
+    vi.advanceTimersByTime(SHOW_AFTER_MS);
+    expect(banner.variant).toBe("reconnecting");
+    expect(announcements).toEqual([RECONNECTING]);
+    banner.meetingServiceStatus("ok");
+    expect(banner.variant).toBe("peer_reconnecting");
+    expect(announcements).toEqual([RECONNECTING, PEER_RECONNECTING]);
+    expect(effects).toEqual([{ type: "failure", code: "media_interrupted" }]);
+  });
+
+  it("announces and reports when offline replaces an audio and video interruption", () => {
+    const { banner, changes, announcements, effects } = connectedBanner();
+    banner.participantStatus("remote-1", "interrupted");
+    vi.advanceTimersByTime(SHOW_AFTER_MS);
+    banner.network(false);
+    expect(banner.variant).toBe("reconnecting_offline");
+    banner.network(true);
+    expect(banner.variant).toBe("peer_reconnecting");
+    expect(changes).toEqual(["peer_reconnecting", "reconnecting_offline", "peer_reconnecting"]);
+    expect(announcements).toEqual([PEER_RECONNECTING, RECONNECTING_OFFLINE, PEER_RECONNECTING]);
+    expect(effects).toEqual([
+      { type: "failure", code: "media_interrupted" },
+      { type: "failure", code: "browser_offline" },
+      { type: "failure", code: "media_interrupted" },
+    ]);
+  });
+
+  it("prefers local meeting-service recovery over peer media interruption", () => {
+    const { banner, announcements } = connectedBanner();
+    banner.participantStatus("remote-1", "interrupted");
+    banner.meetingServiceStatus("reconnecting");
+    vi.advanceTimersByTime(SHOW_AFTER_MS);
+    expect(banner.variant).toBe("reconnecting");
+    expect(announcements).toEqual([RECONNECTING]);
+    banner.meetingServiceStatus("ok");
+    expect(banner.variant).toBe("peer_reconnecting");
+    expect(announcements).toEqual([RECONNECTING, PEER_RECONNECTING]);
+  });
+
   it("clears silently when the affected participant leaves", () => {
     const { banner, changes, announcements, effects } = connectedBanner();
     banner.participantStatus("remote-1", "interrupted");
     vi.advanceTimersByTime(SHOW_AFTER_MS);
     banner.participantGone("remote-1");
     expect(banner.variant).toBeNull();
-    expect(changes).toEqual(["reconnecting", null]);
-    expect(announcements).toEqual([RECONNECTING]);
+    expect(changes).toEqual(["peer_reconnecting", null]);
+    expect(announcements).toEqual([PEER_RECONNECTING]);
     expect(effects).toHaveLength(1);
   });
 
@@ -207,10 +250,10 @@ describe("ConnectionBanner", () => {
     banner.participantStatus("remote-2", "connected");
     banner.participantStatus("remote-1", "interrupted");
     vi.advanceTimersByTime(SHOW_AFTER_MS);
-    expect(banner.variant).toBe("reconnecting");
+    expect(banner.variant).toBe("peer_reconnecting");
     banner.participantStatus("remote-2", "connected");
     vi.advanceTimersByTime(STABLE_MS * 2);
-    expect(banner.variant).toBe("reconnecting");
+    expect(banner.variant).toBe("peer_reconnecting");
   });
 
   it("emits nothing on reset, and pending timers never fire afterwards", () => {
@@ -232,5 +275,146 @@ describe("ConnectionBanner", () => {
     expect(changes).toHaveLength(before.changes);
     expect(announcements).toHaveLength(before.announcements);
     expect(effects).toHaveLength(before.effects);
+  });
+
+  describe("meeting service connection", () => {
+    it("shows nothing for a recovery shorter than the threshold", () => {
+      const { banner, changes, announcements, effects } = connectedBanner();
+      banner.meetingServiceStatus("reconnecting");
+      vi.advanceTimersByTime(SHOW_AFTER_MS - 1);
+      banner.meetingServiceStatus("ok");
+      vi.advanceTimersByTime(SHOW_AFTER_MS * 5);
+      expect(banner.variant).toBeNull();
+      expect(changes).toEqual([]);
+      expect(announcements).toEqual([]);
+      expect(effects).toEqual([]);
+    });
+
+    it("shows reconnecting once the recovery lasts the threshold, announcing and reporting once", () => {
+      const { banner, changes, announcements, effects } = connectedBanner();
+      banner.meetingServiceStatus("reconnecting");
+      vi.advanceTimersByTime(SHOW_AFTER_MS - 1);
+      expect(banner.variant).toBeNull();
+      vi.advanceTimersByTime(1);
+      expect(banner.variant).toBe("reconnecting");
+      expect(changes).toEqual(["reconnecting"]);
+      expect(announcements).toEqual([RECONNECTING]);
+      expect(effects).toEqual([{ type: "failure", code: "media_interrupted" }]);
+    });
+
+    it("works without any other participant", () => {
+      const { banner, changes } = createBanner();
+      banner.meetingServiceStatus("reconnecting");
+      vi.advanceTimersByTime(SHOW_AFTER_MS);
+      expect(banner.variant).toBe("reconnecting");
+      banner.meetingServiceStatus("ok");
+      vi.advanceTimersByTime(STABLE_MS - 1);
+      expect(banner.variant).toBe("reconnecting");
+      vi.advanceTimersByTime(1);
+      expect(banner.variant).toBeNull();
+      expect(changes).toEqual(["reconnecting", null]);
+    });
+
+    it("clears after a stable period with one Reconnected and a recovery effect", () => {
+      const { banner, changes, announcements, effects } = connectedBanner();
+      banner.meetingServiceStatus("reconnecting");
+      vi.advanceTimersByTime(SHOW_AFTER_MS + 500);
+      banner.meetingServiceStatus("ok");
+      vi.advanceTimersByTime(STABLE_MS - 1);
+      expect(banner.variant).toBe("reconnecting");
+      vi.advanceTimersByTime(1);
+      expect(banner.variant).toBeNull();
+      expect(changes).toEqual(["reconnecting", null]);
+      expect(announcements).toEqual([RECONNECTING, "Reconnected"]);
+      expect(effects).toEqual([
+        { type: "failure", code: "media_interrupted" },
+        { type: "recovery", interruptedMs: 500 + STABLE_MS },
+      ]);
+    });
+
+    it("keeps one steady banner while the recovery flaps", () => {
+      const { banner, changes, announcements } = connectedBanner();
+      banner.meetingServiceStatus("reconnecting");
+      vi.advanceTimersByTime(SHOW_AFTER_MS);
+      for (let i = 0; i < 4; i += 1) {
+        banner.meetingServiceStatus("ok");
+        vi.advanceTimersByTime(STABLE_MS / 2);
+        banner.meetingServiceStatus("reconnecting");
+        vi.advanceTimersByTime(STABLE_MS / 2);
+      }
+      expect(changes).toEqual(["reconnecting"]);
+      banner.meetingServiceStatus("ok");
+      vi.advanceTimersByTime(STABLE_MS);
+      expect(changes).toEqual(["reconnecting", null]);
+      expect(announcements).toEqual([RECONNECTING, "Reconnected"]);
+    });
+
+    it("shows a failed recovery immediately as couldn't reconnect", () => {
+      const { banner, announcements, effects } = createBanner();
+      banner.meetingServiceStatus("failed");
+      expect(banner.variant).toBe("failed_reconnect");
+      expect(announcements).toEqual([FAILED_RECONNECT]);
+      expect(effects).toEqual([{ type: "failure", code: "media_connection_failed" }]);
+    });
+
+    it("goes from reconnecting to failed with a new announcement and report", () => {
+      const { banner, changes, announcements } = connectedBanner();
+      banner.meetingServiceStatus("reconnecting");
+      vi.advanceTimersByTime(SHOW_AFTER_MS);
+      banner.meetingServiceStatus("failed");
+      expect(changes).toEqual(["reconnecting", "failed_reconnect"]);
+      expect(announcements).toEqual([RECONNECTING, FAILED_RECONNECT]);
+    });
+
+    it("takes precedence over healthy remote media", () => {
+      const { banner } = connectedBanner();
+      banner.meetingServiceStatus("failed");
+      banner.participantStatus("remote-1", "connected");
+      expect(banner.variant).toBe("failed_reconnect");
+    });
+
+    it("stays up while remote media is still degraded after the meeting service recovers", () => {
+      const { banner } = connectedBanner();
+      banner.meetingServiceStatus("reconnecting");
+      banner.participantStatus("remote-1", "interrupted");
+      vi.advanceTimersByTime(SHOW_AFTER_MS);
+      expect(banner.variant).toBe("reconnecting");
+      banner.meetingServiceStatus("ok");
+      vi.advanceTimersByTime(STABLE_MS * 3);
+      expect(banner.variant).toBe("peer_reconnecting");
+    });
+
+    it("shows the offline variant while the browser is offline", () => {
+      const { banner } = connectedBanner();
+      banner.meetingServiceStatus("reconnecting");
+      banner.network(false);
+      vi.advanceTimersByTime(SHOW_AFTER_MS);
+      expect(banner.variant).toBe("reconnecting_offline");
+    });
+
+    it("forgets the status on reset, and pending timers never fire afterwards", () => {
+      const { banner, changes } = connectedBanner();
+      banner.meetingServiceStatus("reconnecting");
+      banner.reset();
+      vi.advanceTimersByTime(SHOW_AFTER_MS * 5);
+      expect(banner.variant).toBeNull();
+      expect(changes).toEqual([]);
+      banner.participantStatus("remote-1", "interrupted");
+      banner.participantStatus("remote-1", "connected");
+      vi.advanceTimersByTime(SHOW_AFTER_MS * 5);
+      expect(changes).toEqual([]);
+    });
+
+    it("does not announce Reconnected when a participant leaves after a short blip", () => {
+      const { banner, announcements } = connectedBanner();
+      banner.meetingServiceStatus("reconnecting");
+      banner.meetingServiceStatus("ok");
+      banner.participantStatus("remote-1", "interrupted");
+      vi.advanceTimersByTime(SHOW_AFTER_MS);
+      banner.participantGone("remote-1");
+      vi.advanceTimersByTime(STABLE_MS * 3);
+      expect(banner.variant).toBeNull();
+      expect(announcements).toEqual([PEER_RECONNECTING]);
+    });
   });
 });

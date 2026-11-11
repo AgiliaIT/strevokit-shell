@@ -25,6 +25,9 @@ export interface ShellOptions {
   readonly devices?: FakeMediaDevices | null;
   /** Set before the element renders, so it sees every entry. */
   readonly logger?: MeetingLogger;
+  /** Recovery options set on the element before it renders. */
+  readonly getJoinToken?: () => Promise<string>;
+  readonly reconnectWindowMs?: number;
 }
 
 const created = new Set<StrevokitMeetingElement>();
@@ -55,6 +58,8 @@ export async function createShell(options: ShellOptions = {}) {
   element.addEventListener("svk-closed", (event) => closed.push(event.detail));
   if (options.appearance !== undefined) element.appearance = options.appearance;
   if (options.logger !== undefined) element.logger = options.logger;
+  if (options.getJoinToken !== undefined) element.getJoinToken = options.getJoinToken;
+  if (options.reconnectWindowMs !== undefined) element.reconnectWindowMs = options.reconnectWindowMs;
   const realtimeUrl = options.realtimeUrl === undefined ? REALTIME_URL : options.realtimeUrl;
   if (realtimeUrl !== null) element.realtimeUrl = realtimeUrl;
   const token = options.token === undefined ? TOKEN : options.token;

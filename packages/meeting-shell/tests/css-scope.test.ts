@@ -97,8 +97,10 @@ describe("stylesheet scope", () => {
       if (rule.name === "container") containers.push(rule);
       if (rule.name === "media") mediaParams.push(rule.params);
     });
-    expect(containers.map((rule) => rule.params)).toEqual(["(max-width: 479px)"]);
-    expect(containers[0]?.nodes?.length).toBeGreaterThan(0);
+    expect([...containers.map((rule) => rule.params)].sort()).toEqual(
+      ["(max-width: 479px)", "(min-width: 768px)"].sort(),
+    );
+    expect(containers.every((rule) => (rule.nodes?.length ?? 0) > 0)).toBe(true);
     expect(mediaParams.filter((params) => /width/u.test(params))).toEqual([]);
   });
 

@@ -96,7 +96,7 @@ describe("video tile", () => {
     tile.participant = view({ connection: "interrupted" });
     await tile.updateComplete;
     expect(tile).toHaveAttribute("data-connection", "interrupted");
-    expect(within(tile).getByText("Connection interrupted").closest(".svk-tile-overlay")).not.toBeNull();
+    expect(within(tile).getByText("Reconnecting…").closest(".svk-tile-overlay")).not.toBeNull();
     expect(tile.querySelector(".svk-tile-overlay svg")).toHaveAttribute("aria-hidden", "true");
     expect(screen.getByRole("listitem", { name: "Grace Hopper" })).toBe(tile);
 
@@ -117,7 +117,7 @@ describe("video tile", () => {
     shell.engines.last.setConnection("remote-1", "interrupted");
     await shell.settle();
     const tile = screen.getByRole("listitem", { name: "Grace Hopper" });
-    expect(within(tile).getByText("Connection interrupted")).toBeInTheDocument();
+    expect(within(tile).getByText("Reconnecting…")).toBeInTheDocument();
   });
 
   it("never renders participant IDs", async () => {
@@ -152,8 +152,9 @@ describe("video tile", () => {
       expect(video?.srcObject).toBe(screenStream);
       expect(video).not.toHaveClass("svk-mirrored");
       expect(video?.muted).toBe(true);
-      expect(within(tile).getByText("Grace Hopper")).toBeInTheDocument();
-      expect(within(tile).getByText("Shared screen")).toBeInTheDocument();
+      expect(within(tile).queryByText("Grace Hopper")).toBeNull();
+      expect(within(tile).queryByText("Shared screen")).toBeNull();
+      expect(tile.querySelector(".svk-tile-footer")).toBeNull();
     });
 
     it("never mirrors the self share, while the self camera stays mirrored", async () => {
@@ -163,6 +164,9 @@ describe("video tile", () => {
       expect(camera.querySelector("video")).toHaveClass("svk-mirrored");
       expect(share.querySelector("video")).not.toHaveClass("svk-mirrored");
       expect(screen.getByRole("listitem", { name: "Ada Lovelace (You), Shared screen" })).toBe(share);
+      expect(within(share).queryByText("Ada Lovelace (You)")).toBeNull();
+      expect(within(share).queryByText("Shared screen")).toBeNull();
+      expect(within(camera).getByText("Ada Lovelace (You)")).toBeInTheDocument();
     });
 
     it("is distinguishable from the camera tile of the same participant", async () => {
@@ -190,27 +194,26 @@ describe("video tile", () => {
       expect(tile.querySelector("video")).toBeNull();
     });
 
-    it("adds a Shared screen tile next to the camera tile in the room, and removes it when the share ends", async () => {
+    it("shows only the Shared screen tile in the room while the stream is set, and brings the camera tile back when it clears", async () => {
       const shell = await createShell();
       await joinMeeting(shell);
       const engine = shell.engines.last;
       engine.setLocalMedia("screen", true);
       await shell.settle();
-      const tiles = within(screen.getByRole("list", { name: "Participants' video" })).getAllByRole("listitem");
-      expect(tiles.map((tile) => tile.getAttribute("aria-label"))).toEqual([
-        "Ada Lovelace (You)",
-        "Ada Lovelace (You), Shared screen",
-      ]);
-      expect(tiles[0]?.querySelector("video")).toHaveClass("svk-mirrored");
-      expect(tiles[1]?.querySelector("video")).not.toHaveClass("svk-mirrored");
+      const list = screen.getByRole("list", { name: "Participants' video" });
+      const tiles = within(list).getAllByRole("listitem");
+      expect(tiles.map((tile) => tile.getAttribute("aria-label"))).toEqual(["Ada Lovelace (You), Shared screen"]);
+      expect(within(list).queryByRole("listitem", { name: "Ada Lovelace (You)" })).toBeNull();
+      expect(tiles[0]?.querySelector("video")).not.toHaveClass("svk-mirrored");
 
       engine.setLocalMedia("screen", false);
       await shell.settle();
       expect(screen.queryByRole("listitem", { name: /Shared screen/u })).toBeNull();
-      expect(screen.getByRole("listitem", { name: "Ada Lovelace (You)" })).toBeInTheDocument();
+      const camera = screen.getByRole("listitem", { name: "Ada Lovelace (You)" });
+      expect(within(camera).getByText("Ada Lovelace (You)")).toBeInTheDocument();
     });
 
-    it("shows a remote participant's share as its own tile while their camera tile stays", async () => {
+    it("shows only a remote participant's share while their stream is set, and brings the camera tile back when it clears", async () => {
       const shell = await createShell();
       await joinMeeting(shell);
       const engine = shell.engines.last;
@@ -218,14 +221,19 @@ describe("video tile", () => {
       engine.setRemoteMedia("remote-1", "camera", true, fakeStream("camera"));
       engine.setRemoteMedia("remote-1", "screen", true, fakeStream("screen"));
       await shell.settle();
-      expect(screen.getByRole("listitem", { name: "Grace Hopper" })).toBeInTheDocument();
-      const share = screen.getByRole("listitem", { name: "Grace Hopper, Shared screen" });
+      const list = screen.getByRole("list", { name: "Participants' video" });
+      expect(within(list).queryByRole("listitem", { name: "Grace Hopper" })).toBeNull();
+      expect(within(list).queryByRole("listitem", { name: "Ada Lovelace (You)" })).toBeNull();
+      const share = within(list).getByRole("listitem", { name: "Grace Hopper, Shared screen" });
       expect(share.querySelector("video")).not.toHaveClass("svk-mirrored");
+      expect(within(share).queryByText("Grace Hopper")).toBeNull();
+      expect(within(share).queryByText("Shared screen")).toBeNull();
 
       engine.setRemoteMedia("remote-1", "screen", false, null);
       await shell.settle();
       expect(screen.queryByRole("listitem", { name: "Grace Hopper, Shared screen" })).toBeNull();
-      expect(screen.getByRole("listitem", { name: "Grace Hopper" })).toBeInTheDocument();
+      const camera = screen.getByRole("listitem", { name: "Grace Hopper" });
+      expect(within(camera).getByText("Grace Hopper")).toBeInTheDocument();
     });
   });
 });

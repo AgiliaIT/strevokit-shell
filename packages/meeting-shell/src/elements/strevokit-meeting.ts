@@ -4,6 +4,7 @@ import {
   ANNOUNCEMENTS,
   CONNECTION_BANNER,
   END_MEETING_FAILED,
+  SPEAKER_FAILURE,
   blocksDevice,
   deviceCopy,
   deviceMessage,
@@ -71,6 +72,10 @@ const APPEARANCES: readonly MeetingShellAppearance[] = ["light", "dark", "system
 const KINDS: readonly DeviceKind[] = ["microphone", "camera"];
 const ALL_ON: PerKind<boolean> = Object.freeze({ camera: true, microphone: true });
 const ALL_OFF: PerKind<boolean> = Object.freeze({ camera: false, microphone: false });
+const NO_TARGET: PerKind<DeviceTarget | null> = Object.freeze({ camera: null, microphone: null });
+
+/** A camera or microphone the participant asked to switch to. */
+type DeviceTarget = { readonly deviceId: string; readonly label: string };
 /** Engine media failures explained next to the device's toggle; other failures just leave the toggle as it was. */
 const MEDIA_PROBLEM_CODES: ReadonlySet<string> = new Set<MeetingErrorCode>([
   "permission_denied",
@@ -158,6 +163,8 @@ export class StrevokitMeetingElement extends LitElement {
     realtimeUrl: { type: String, attribute: "realtime-url" },
     token: { attribute: false, noAccessor: true },
     logger: { attribute: false },
+    getJoinToken: { attribute: false },
+    reconnectWindowMs: { type: Number, attribute: "reconnect-window-ms" },
     hideEndMeeting: { type: Boolean, attribute: "hide-end-meeting", reflect: true },
   };
 
@@ -167,6 +174,14 @@ export class StrevokitMeetingElement extends LitElement {
   declare realtimeUrl: string | null;
   /** Optional diagnostics sink, passed to the meeting engine. It never receives the join token. */
   declare logger: MeetingLogger | null;
+  /**
+   * Optional. Called when the meeting needs a fresh join token to restore a lost connection and the token in memory
+   * can't be used. Resolve with a token issued by your backend for the same participant. Read when the meeting
+   * session starts. Property only.
+   */
+  declare getJoinToken: (() => Promise<string>) | null;
+  /** Optional. How long, in milliseconds, to keep trying to restore a lost connection. Read when the session starts. */
+  declare reconnectWindowMs: number | null;
   /** Whether to hide the End meeting button from hosts. */
   declare hideEndMeeting: boolean;
 
@@ -209,6 +224,22 @@ export class StrevokitMeetingElement extends LitElement {
   readonly #watches: Record<DeviceKind, (() => void) | null> = { camera: null, microphone: null };
   /** The remembered camera and microphone, loaded when a meeting session starts. */
   #choice: DeviceChoice = NO_CHOICE;
+  /** The live track's device, so a change while the kind stays on can be announced once. */
+  #liveDeviceId: PerKind<string | null> = { camera: null, microphone: null };
+  /** The newest device asked for while a switch of that kind is already in flight. */
+  #switchQueued: PerKind<DeviceTarget | null> = NO_TARGET;
+  /** A device switch chosen while the meeting connection is being restored. */
+  #switchHeld: PerKind<DeviceTarget | null> = NO_TARGET;
+  /** Whether a camera or microphone switch is waiting on the engine. */
+  #switchApplying: PerKind<boolean> = ALL_OFF;
+  /** The speaker for this meeting only. Not written to device storage. */
+  #speaker: DeviceTarget | null = null;
+  /** The speaker chosen while another speaker change is already in flight. */
+  #speakerQueued: DeviceTarget | null = null;
+  /** Whether a speaker change is waiting on the audio output. */
+  #speakerApplying = false;
+  /** True after one attempt to replace a speaker that disappeared. */
+  #speakerRecovering = false;
   /** The streams last seen, so the device lists are refreshed once permission brings real labels. */
   #streamsSeen = "";
   /** The connection banner for the meeting, from joining until leaving starts or the session ends. */
@@ -227,6 +258,8 @@ export class StrevokitMeetingElement extends LitElement {
     this.appearance = "system";
     this.realtimeUrl = null;
     this.logger = null;
+    this.getJoinToken = null;
+    this.reconnectWindowMs = null;
     this.hideEndMeeting = false;
   }
 
@@ -271,6 +304,7 @@ export class StrevokitMeetingElement extends LitElement {
     let done!: () => void;
     const leaving = new Promise<void>((resolve) => (done = resolve));
     this.#leaving = leaving;
+    this.#dropDeviceSwitches();
     this.#stopMeetingMessages();
     this.requestUpdate();
     void session.engine
@@ -289,6 +323,8 @@ export class StrevokitMeetingElement extends LitElement {
     if (changed.has("appearance")) this.#reflectAppearance();
     this.#configure();
     this.#announceMediaChanges();
+    this.#noteLiveDevice();
+    this.#noteSpeaker();
     this.#devices.sync(this.#session !== null && this.#phase !== "final");
     this.#refreshDevicesOnNewStreams();
     const active = this.#session !== null && (this.#phase === "prejoin" || this.#phase === "joining");
@@ -479,6 +515,9 @@ export class StrevokitMeetingElement extends LitElement {
         .onRetry=${this.#retryInMeeting}
         .onDismissDevice=${this.#dismissDevice}
         .onSelectDevice=${this.#selectInMeeting}
+        .onSelectSpeaker=${this.#selectSpeaker}
+        .currentSpeaker=${this.#speaker?.deviceId ?? null}
+        .onOpenDevices=${this.#openDeviceMenu}
         .onLeave=${this.#leaveFromToolbar}
         .onDismissMessage=${this.#dismissNotice}
         .canEndMeeting=${canEndMeeting}
@@ -565,6 +604,7 @@ export class StrevokitMeetingElement extends LitElement {
     for (const other of engine.participants) {
       if (other.id !== engine.self?.id) banner.participantStatus(other.id, engine.mediaConnectionStatus(other.id));
     }
+    if (engine.state === "reconnecting") banner.meetingServiceStatus("reconnecting");
     banner.network(typeof navigator === "undefined" || navigator.onLine !== false);
     const view = this.ownerDocument.defaultView;
     const onNetwork = (event: Event): void => banner.network(event.type === "online");
@@ -734,17 +774,200 @@ export class StrevokitMeetingElement extends LitElement {
     void this.#runMedia(kind, () => turnOn(engine, kind, deviceId));
   };
 
-  /** Remembers the device; when that device kind is on, switches to it in place and announces the switch. */
-  #selectInMeeting = (kind: DeviceKind, option: DeviceOption): void => {
-    this.#choice = saveDeviceChoice(kind, savedDevice(option));
-    this.requestUpdate();
-    const engine = this.#session?.engine;
-    if (!engine || this.#phase !== "in_meeting" || this.#busy[kind] || this.#leaving) return;
-    if (!this.#meeting.snapshot.localMediaState[kind]) return;
-    void this.#runMedia(kind, () => turnOn(engine, kind, option.deviceId)).then((done) => {
-      if (done) this.#announce(ANNOUNCEMENTS.switchedTo(option.label));
-    });
+  /** Refreshes the device list before a menu shows what can be chosen. */
+  #openDeviceMenu = (): Promise<void> => this.#devices.refresh();
+
+  /**
+   * Sends meeting audio to another speaker. `setSpeaker` starts during this turn. A later choice replaces one that
+   * is still in flight. The choice is kept for this meeting only, and a rejection leaves the previous speaker in place.
+   */
+  #selectSpeaker = (option: DeviceOption): void => {
+    if (this.#phase !== "in_meeting" || this.#leaving) return;
+    const speakers = this.#devices.lists.speaker;
+    if (speakers.length < 2) return;
+    const target: DeviceTarget = { deviceId: option.deviceId, label: option.label };
+    if (this.#speakerApplying) {
+      this.#speakerQueued = target;
+      return;
+    }
+    const shown = this.#speaker?.deviceId ?? speakers[0]?.deviceId;
+    if (target.deviceId === shown) return;
+    void this.#applySpeaker(target);
   };
+
+  /**
+   * Applies `target` and, once that request settles, applies a choice made while it was in flight. A result from an
+   * earlier meeting is ignored.
+   */
+  async #applySpeaker(target: DeviceTarget): Promise<void> {
+    const room = this.querySelector<SvkRoom>("svk-room");
+    if (!room) return;
+    const generation = this.#generation;
+    const abandoned = (): boolean => generation !== this.#generation || this.#leaving !== null || this.#phase !== "in_meeting";
+    this.#speakerApplying = true;
+    let failed = false;
+    try {
+      await room.setSpeaker(target.deviceId);
+    } catch {
+      failed = true;
+    } finally {
+      if (generation === this.#generation) this.#speakerApplying = false;
+    }
+    if (abandoned()) return;
+    const next = this.#speakerQueued;
+    this.#speakerQueued = null;
+    if (next && next.deviceId !== target.deviceId) {
+      await this.#applySpeaker(next);
+      return;
+    }
+    if (failed) {
+      this.#notices?.report("speaker", SPEAKER_FAILURE);
+      return;
+    }
+    this.#speaker = target;
+    this.#speakerRecovering = false;
+    this.requestUpdate();
+  }
+
+  /** When the chosen speaker disappears, try one other listed speaker and then stop. */
+  #noteSpeaker(): void {
+    const selected = this.#speaker;
+    if (!selected || this.#speakerRecovering || this.#speakerApplying || this.#phase !== "in_meeting" || this.#leaving) {
+      return;
+    }
+    const speakers = this.#devices.lists.speaker;
+    if (speakers.some((option) => option.deviceId === selected.deviceId)) return;
+    const next = speakers.find((option) => option.deviceId !== "");
+    this.#speakerRecovering = true;
+    if (!next) {
+      this.#notices?.report("speaker", SPEAKER_FAILURE);
+      return;
+    }
+    void this.#applySpeaker({ deviceId: next.deviceId, label: next.label });
+  }
+
+  /**
+   * Remembers an off-device choice immediately. A live switch is applied when the engine is joined, and the
+   * remembered choice updates only after that capture is the one in use.
+   */
+  #selectInMeeting = (kind: DeviceKind, option: DeviceOption): void => {
+    if (this.#phase !== "in_meeting" || this.#leaving) return;
+    const engine = this.#session?.engine;
+    if (!engine) return;
+    if (this.#devices.lists[kind].length < 2) return;
+    const target: DeviceTarget = { deviceId: option.deviceId, label: option.label };
+    if (!this.#meeting.snapshot.localMediaState[kind]) {
+      this.#choice = saveDeviceChoice(kind, savedDevice(option));
+      this.#switchQueued = { ...this.#switchQueued, [kind]: null };
+      this.#switchHeld = { ...this.#switchHeld, [kind]: null };
+      this.requestUpdate();
+      return;
+    }
+    const active = this.#activeDeviceId(kind) ?? this.#resolvedDevice(kind);
+    const pending =
+      this.#switchApplying[kind] || this.#switchQueued[kind] !== null || this.#switchHeld[kind] !== null;
+    if (target.deviceId === active && !pending) return;
+    if (engine.state === "reconnecting") {
+      this.#switchHeld = { ...this.#switchHeld, [kind]: target };
+      return;
+    }
+    if (engine.state !== "joined") return;
+    this.#switchHeld = { ...this.#switchHeld, [kind]: null };
+    if (this.#switchApplying[kind]) {
+      this.#switchQueued = { ...this.#switchQueued, [kind]: target };
+      this.#setBusy(kind, true);
+      return;
+    }
+    void this.#applyDeviceSwitch(kind, target);
+  };
+
+  /** The device producing the live track, when that kind is on. */
+  #activeDeviceId(kind: DeviceKind): string | null {
+    if (!this.#meeting.snapshot.localMediaState[kind]) return null;
+    return streamDeviceId(this.#meeting.snapshot.localMedia[kind]);
+  }
+
+  /**
+   * Switches a live camera or microphone. One call stays in flight, and a newer request replaces the one waiting
+   * behind it. The menu keeps the previous device until the track actually changes.
+   */
+  async #applyDeviceSwitch(kind: DeviceKind, target: DeviceTarget): Promise<void> {
+    const engine = this.#session?.engine;
+    const generation = this.#generation;
+    const abandoned = (): boolean => generation !== this.#generation || this.#leaving !== null || this.#phase !== "in_meeting";
+    if (!engine || abandoned()) return;
+    if (engine.state === "reconnecting") {
+      this.#switchHeld = { ...this.#switchHeld, [kind]: target };
+      if (generation === this.#generation) this.#setBusy(kind, false);
+      return;
+    }
+    if (engine.state !== "joined") return;
+    if (!this.#meeting.snapshot.localMediaState[kind]) {
+      const option = this.#devices.lists[kind].find((candidate) => candidate.deviceId === target.deviceId);
+      if (option) this.#choice = saveDeviceChoice(kind, savedDevice(option));
+      this.requestUpdate();
+      if (generation === this.#generation) this.#setBusy(kind, false);
+      return;
+    }
+    if ((this.#activeDeviceId(kind) ?? this.#resolvedDevice(kind)) === target.deviceId) return;
+    this.#switchApplying = { ...this.#switchApplying, [kind]: true };
+    this.#setBusy(kind, true);
+    try {
+      await turnOn(engine, kind, target.deviceId);
+      if (!abandoned()) this.#setProblem(kind, null);
+    } catch (error) {
+      this.#reportMediaFailure(kind, error, generation);
+      if (errorCode(error) === "not_joined" && !abandoned() && this.#switchHeld[kind] === null) {
+        this.#switchHeld = { ...this.#switchHeld, [kind]: target };
+      }
+    } finally {
+      if (generation === this.#generation) {
+        this.#switchApplying = { ...this.#switchApplying, [kind]: false };
+      }
+    }
+    if (abandoned()) {
+      if (generation === this.#generation) this.#setBusy(kind, false);
+      return;
+    }
+    const next = this.#switchQueued[kind];
+    this.#switchQueued = { ...this.#switchQueued, [kind]: null };
+    if (next && (this.#activeDeviceId(kind) ?? this.#resolvedDevice(kind)) !== next.deviceId) {
+      await this.#applyDeviceSwitch(kind, next);
+      return;
+    }
+    this.#setBusy(kind, false);
+  }
+
+  /** Forgets switches that must not capture after the participant leaves or the meeting ends. */
+  #dropDeviceSwitches(): void {
+    this.#switchQueued = NO_TARGET;
+    this.#switchHeld = NO_TARGET;
+    this.#switchApplying = ALL_OFF;
+    this.#liveDeviceId = { camera: null, microphone: null };
+    this.#speaker = null;
+    this.#speakerQueued = null;
+    this.#speakerApplying = false;
+    this.#speakerRecovering = false;
+  }
+
+  /**
+   * When a live camera or microphone moves to another listed device, remember that device and announce it once.
+   * The first id seen for a kind is the capture already in use, not a switch.
+   */
+  #noteLiveDevice(): void {
+    if (this.#phase !== "in_meeting" || this.#leaving) return;
+    for (const kind of KINDS) {
+      const id = this.#activeDeviceId(kind);
+      const previous = this.#liveDeviceId[kind];
+      if (id === previous) continue;
+      this.#liveDeviceId = { ...this.#liveDeviceId, [kind]: id };
+      if (previous === null || id === null) continue;
+      const option = this.#devices.lists[kind].find((candidate) => candidate.deviceId === id);
+      if (!option) continue;
+      this.#choice = saveDeviceChoice(kind, savedDevice(option));
+      this.#announce(ANNOUNCEMENTS.switchedTo(option.label));
+    }
+  }
 
   /**
    * Joins with the preview still running, so a failed join keeps it. Once joined, the preview is released before the
@@ -804,18 +1027,23 @@ export class StrevokitMeetingElement extends LitElement {
       if (generation === this.#generation) this.#setProblem(kind, null);
       return true;
     } catch (error) {
-      const code = errorCode(error);
-      if (generation === this.#generation && !this.#leaving && MEDIA_PROBLEM_CODES.has(code)) {
-        const problem = deviceProblemFromCode(code as MeetingErrorCode);
-        if (this.#setProblem(kind, problem) && this.#phase === "in_meeting") {
-          this.#reportDeviceProblem(kind, problem, "in_meeting", code);
-        }
-        this.#announce(deviceMessage(kind, problem));
-      }
+      this.#reportMediaFailure(kind, error, generation);
       return false;
     } finally {
       if (generation === this.#generation) this.#setBusy(kind, false);
     }
+  }
+
+  /** Shows the catalogue message for a capture failure. `not_joined` is not a device problem. */
+  #reportMediaFailure(kind: DeviceKind, error: unknown, generation: number): void {
+    const code = errorCode(error);
+    if (code === "not_joined") return;
+    if (generation !== this.#generation || this.#leaving || !MEDIA_PROBLEM_CODES.has(code)) return;
+    const problem = deviceProblemFromCode(code as MeetingErrorCode);
+    if (this.#setProblem(kind, problem) && this.#phase === "in_meeting") {
+      this.#reportDeviceProblem(kind, problem, "in_meeting", code);
+    }
+    this.#announce(deviceMessage(kind, problem));
   }
 
   #localMedia(): PerKind<boolean> {
@@ -907,7 +1135,12 @@ export class StrevokitMeetingElement extends LitElement {
     this.#choice = loadDeviceChoice();
     let engine: MeetingEngine;
     try {
-      engine = getEngineFactory()({ ...settings, logger: this.#forwardingLogger() });
+      engine = getEngineFactory()({
+        ...settings,
+        logger: this.#forwardingLogger(),
+        ...(typeof this.getJoinToken === "function" ? { getJoinToken: this.getJoinToken } : {}),
+        ...(typeof this.reconnectWindowMs === "number" ? { reconnectWindowMs: this.reconnectWindowMs } : {}),
+      });
     } catch (error) {
       this.#finish("join_failed", errorCode(error));
       return;
@@ -931,6 +1164,32 @@ export class StrevokitMeetingElement extends LitElement {
         this.#banner?.participantGone(participantId);
         if (name !== undefined) this.#announce(ANNOUNCEMENTS.participantLeft(name));
       }),
+      engine.on("state_changed", ({ state, previous }) => {
+        if (!inMeeting() || this.#leaving) return;
+        if (state === "reconnecting") {
+          this.#banner?.meetingServiceStatus("reconnecting");
+          for (const kind of KINDS) {
+            const queued = this.#switchQueued[kind];
+            if (!queued) continue;
+            this.#switchHeld = { ...this.#switchHeld, [kind]: queued };
+            this.#switchQueued = { ...this.#switchQueued, [kind]: null };
+          }
+        } else if (state === "joined" && previous === "reconnecting") {
+          this.#banner?.meetingServiceStatus("ok");
+          for (const kind of KINDS) {
+            const held = this.#switchHeld[kind];
+            this.#switchHeld = { ...this.#switchHeld, [kind]: null };
+            if (!held) continue;
+            if (this.#switchApplying[kind]) {
+              // The capture already in flight finishes first, then this choice runs.
+              this.#switchQueued = { ...this.#switchQueued, [kind]: held };
+              this.#setBusy(kind, true);
+            } else {
+              void this.#applyDeviceSwitch(kind, held);
+            }
+          }
+        }
+      }),
       engine.on("media_connection_changed", ({ participantId, status }) => {
         if (inMeeting()) this.#banner?.participantStatus(participantId, status);
       }),
@@ -938,9 +1197,11 @@ export class StrevokitMeetingElement extends LitElement {
         if (inMeeting() && !this.#leaving) this.#showMeetingError(error);
       }),
       engine.on("closed", ({ reason, error }) => {
+        this.#dropDeviceSwitches();
         if (reason === "meeting_ended" || error?.code === "meeting_ended") {
           this.#finish("meeting_ended", error?.code);
         } else if (inMeeting()) {
+          // Final Connection lost / replaced screens own the outcome; avoid a redundant banner failure entry.
           this.#finish(reason, error?.code);
         }
       }),
@@ -981,6 +1242,7 @@ export class StrevokitMeetingElement extends LitElement {
     this.#focusAfterJoin = false;
     this.#announcedMedia = null;
     this.#announcedScreen = false;
+    this.#dropDeviceSwitches();
     this.#turnedOff = ALL_OFF;
     this.#problems = NO_PROBLEMS;
     this.#reportedPreview = NO_PROBLEMS;

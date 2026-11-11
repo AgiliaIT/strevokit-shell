@@ -1,5 +1,6 @@
 import { screen, within } from "@testing-library/dom";
 import { describe, expect, it } from "vitest";
+import { initials } from "../src/elements/svk-video-tile.js";
 import { participant } from "./support/fakeEngine.js";
 import { fakeStream } from "./support/fakeMediaDevices.js";
 import { createShell, joinMeeting } from "./support/fixture.js";
@@ -10,6 +11,10 @@ async function openList() {
   const shell = await createShell();
   await joinMeeting(shell);
   return shell;
+}
+
+function participantsPanel(): HTMLElement {
+  return screen.getByRole("complementary", { name: "Participants" });
 }
 
 describe("participant list", () => {
@@ -24,7 +29,7 @@ describe("participant list", () => {
     expect(screen.getByRole("button", { name: "Participants (1)" })).toBeInTheDocument();
   });
 
-  it("lists every participant with name, role, connection, and media state", async () => {
+  it("opens one complementary region with Close participants and row details", async () => {
     const shell = await openList();
     const engine = shell.engines.last;
     engine.addParticipant(participant("remote-1", "Grace Hopper"));
@@ -35,13 +40,38 @@ describe("participant list", () => {
     await shell.user.click(trigger);
     await shell.settle();
     expect(trigger).toHaveAttribute("aria-expanded", "true");
-    const dialog = screen.getByRole("dialog", { name: "Participants" });
-    expect(trigger).toHaveAttribute("aria-controls", dialog.id);
-    const items = within(dialog).getAllByRole("listitem");
+    expect(screen.queryByRole("dialog", { name: "Participants" })).toBeNull();
+    const panel = participantsPanel();
+    expect(trigger).toHaveAttribute("aria-controls", panel.id);
+    expect(within(panel).getByRole("button", { name: "Close participants" })).toBeInTheDocument();
+
+    const items = within(panel).getAllByRole("listitem");
     expect(items.map((item) => item.getAttribute("aria-label"))).toEqual([
       "Ada Lovelace (You), Host, Connected, microphone on, camera on",
-      "Grace Hopper, Participant, Connection interrupted, microphone on, camera off",
+      "Grace Hopper, Participant, Reconnecting…, microphone on, camera off",
     ]);
+
+    const self = items[0]!;
+    const remote = items[1]!;
+    expect(within(self).getByText("Ada Lovelace (You)", { exact: true })).toBeInTheDocument();
+    expect(within(self).getByText("Connected")).toBeInTheDocument();
+    expect(within(self).getByText("microphone on")).toBeInTheDocument();
+    expect(within(self).getByText("camera on")).toBeInTheDocument();
+    expect(within(self).getByText(initials("Ada Lovelace"), { exact: true })).toHaveAttribute("aria-hidden", "true");
+
+    expect(within(remote).getByText("Grace Hopper", { exact: true })).toBeInTheDocument();
+    expect(within(remote).getByText("Reconnecting…")).toBeInTheDocument();
+    expect(within(remote).getByText("microphone on")).toBeInTheDocument();
+    expect(within(remote).getByText("camera off")).toBeInTheDocument();
+    const remoteInitials = within(remote).getByText(initials("Grace Hopper"), { exact: true });
+    expect(remoteInitials).toHaveAttribute("aria-hidden", "true");
+    expect(remoteInitials.closest("[aria-hidden='true']")).not.toBeNull();
+
+    for (const item of items) {
+      expect(item.getAttribute("aria-label") ?? "").not.toMatch(/speak/iu);
+      expect(item.querySelector("[data-speaking], .svk-speaking")).toBeNull();
+      expect(within(item).queryByText(/speaking/iu)).toBeNull();
+    }
   });
 
   it("updates entries live", async () => {
@@ -63,11 +93,23 @@ describe("participant list", () => {
     const trigger = screen.getByRole("button", { name: "Participants (1)" });
     await shell.user.click(trigger);
     await shell.settle();
-    expect(screen.getByRole("dialog", { name: "Participants" })).toBeInTheDocument();
+    expect(participantsPanel()).toBeInTheDocument();
     await shell.user.keyboard("{Escape}");
     await shell.settle();
-    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.queryByRole("complementary", { name: "Participants" })).toBeNull();
     expect(trigger).toHaveFocus();
+  });
+
+  it("closes with Close participants and returns focus to the trigger", async () => {
+    const shell = await openList();
+    const trigger = screen.getByRole("button", { name: "Participants (1)" });
+    await shell.user.click(trigger);
+    await shell.settle();
+    await shell.user.click(within(participantsPanel()).getByRole("button", { name: "Close participants" }));
+    await shell.settle();
+    expect(screen.queryByRole("complementary", { name: "Participants" })).toBeNull();
+    expect(trigger).toHaveFocus();
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
   });
 
   it("never renders participant IDs", async () => {
@@ -92,7 +134,7 @@ describe("participant list", () => {
     expect(name).toHaveAttribute("title", LONG_NAME);
   });
 
-  it("gives each shell's dialog its own ID", async () => {
+  it("gives each shell's panel its own ID", async () => {
     const first = await openList();
     await first.user.click(screen.getByRole("button", { name: "Participants (1)" }));
     await first.settle();
@@ -101,9 +143,23 @@ describe("participant list", () => {
     const triggers = screen.getAllByRole("button", { name: "Participants (1)" });
     await second.user.click(triggers[1] as HTMLElement);
     await second.settle();
-    const ids = screen.getAllByRole("dialog", { name: "Participants" }).map((dialog) => dialog.id);
+    const ids = screen.getAllByRole("complementary", { name: "Participants" }).map((panel) => panel.id);
     expect(ids).toHaveLength(2);
     expect(new Set(ids).size).toBe(2);
     expect(ids.every((id) => id !== "")).toBe(true);
+  });
+
+  it("keeps gallery tiles on stage while the panel is open with no share", async () => {
+    const shell = await openList();
+    shell.engines.last.addParticipant(participant("remote-1", "Grace Hopper"));
+    await shell.settle();
+    await shell.user.click(screen.getByRole("button", { name: "Participants (2)" }));
+    await shell.settle();
+    expect(participantsPanel()).toBeInTheDocument();
+    const tiles = screen.getByRole("list", { name: "Participants' video" });
+    expect(tiles).not.toHaveAttribute("data-layout");
+    expect(within(tiles).getAllByRole("listitem")).toHaveLength(2);
+    expect(within(tiles).getByRole("listitem", { name: "Ada Lovelace (You)" })).toBeInTheDocument();
+    expect(within(tiles).getByRole("listitem", { name: "Grace Hopper" })).toBeInTheDocument();
   });
 });

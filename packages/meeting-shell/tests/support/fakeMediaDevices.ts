@@ -79,6 +79,8 @@ export class FakeMediaDevices extends EventTarget {
       { deviceId: "mic-2", label: "Headset microphone" },
     ],
   };
+  /** Speakers, listed only when the test adds them. */
+  outputs: FakeDevice[] = [];
   /** DOMException name to reject with, per kind. */
   failures: Partial<Record<FakeKind, string>> = {};
   /** The DOMException message for failures, so tests can prove it is never shown. */
@@ -121,7 +123,19 @@ export class FakeMediaDevices extends EventTarget {
             toJSON: () => ({}),
           }) as MediaDeviceInfo,
       );
-    return [...entries("camera"), ...entries("microphone")];
+    const speakers: MediaDeviceInfo[] = this.outputs
+      .filter((device) => device.deviceId !== "")
+      .map(
+        (device) =>
+          ({
+            deviceId: device.deviceId,
+            groupId: "",
+            kind: "audiooutput",
+            label: this.labelsVisible ? device.label : "",
+            toJSON: () => ({}),
+          }) as MediaDeviceInfo,
+      );
+    return [...entries("camera"), ...entries("microphone"), ...speakers];
   }
 
   /** Requests for one kind, in order. */

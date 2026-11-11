@@ -70,6 +70,18 @@ describe("mount()", () => {
       expect(handle.element.hideEndMeeting).toBe(true);
     });
 
+    it("forwards getJoinToken and reconnectWindowMs to the engine", async () => {
+      const { engines, target } = setup();
+      const getJoinToken = vi.fn(() => Promise.resolve("test-token-refreshed"));
+      const handle = mount(target, { ...OPTIONS, getJoinToken, reconnectWindowMs: 45_000 });
+      await settle(handle.element);
+      expect(handle.element.getJoinToken).toBe(getJoinToken);
+      expect(handle.element.reconnectWindowMs).toBe(45_000);
+      expect(engines.last.options.getJoinToken).toBe(getJoinToken);
+      expect(engines.last.options.reconnectWindowMs).toBe(45_000);
+      expect(handle.element.hasAttribute("getjointoken")).toBe(false);
+    });
+
     it("never writes the token to an attribute", async () => {
       const { target } = setup();
       const handle = mount(target, OPTIONS);

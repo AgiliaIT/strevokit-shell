@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { STORAGE_KEY, loadDeviceChoice, resolveDevice, saveDeviceChoice, savedDevice } from "../src/media/deviceStore.js";
+import { STORAGE_KEY, loadDeviceChoice, outputOptions, resolveDevice, saveDeviceChoice, savedDevice } from "../src/media/deviceStore.js";
 
 const usb = { deviceId: "camera-2", label: "USB camera" };
 const mic = { deviceId: "mic-1", label: "Built-in microphone" };
@@ -54,6 +54,25 @@ describe("device store", () => {
     const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}") as Record<string, unknown>;
     expect(Object.keys(stored).sort()).toEqual(["camera", "microphone"]);
     expect(Object.keys(stored.camera as object).sort()).toEqual(["deviceId", "label"]);
+  });
+});
+
+describe("output options", () => {
+  const info = (deviceId: string, label: string, kind = "audiooutput"): MediaDeviceInfo =>
+    ({ deviceId, label, kind, groupId: "", toJSON: () => ({}) }) as MediaDeviceInfo;
+
+  it("lists speakers, drops an empty id, and names a hidden speaker", () => {
+    expect(outputOptions([info("speaker-1", "Headphones"), info("", "Ignored"), info("speaker-2", "  ")])).toEqual([
+      { deviceId: "speaker-1", label: "Headphones", named: true },
+      { deviceId: "speaker-2", label: "Speaker 2", named: false },
+    ]);
+  });
+
+  it("does not write a speaker into device storage", () => {
+    saveDeviceChoice("camera", usb);
+    outputOptions([info("speaker-1", "Headphones")]);
+    expect(JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "null")).toEqual({ camera: usb, microphone: null });
+    expect(loadDeviceChoice()).toEqual({ camera: usb, microphone: null });
   });
 });
 

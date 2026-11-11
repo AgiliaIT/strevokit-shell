@@ -13,7 +13,7 @@ const litA11yRules = Object.fromEntries(
 
 export default tseslint.config(
   {
-    ignores: ["dist/", "build/", "etc/", "node_modules/", "docs/examples/"],
+    ignores: ["dist/", "build/", "coverage/", "etc/", "node_modules/", "*.min.js", "docs/examples/"],
   },
   ...tseslint.configs.recommended,
   {

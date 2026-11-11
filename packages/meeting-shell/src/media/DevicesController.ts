@@ -1,6 +1,6 @@
 import type { ReactiveController, ReactiveControllerHost } from "lit";
 import { mediaDevices } from "./capture.js";
-import { NO_DEVICES, deviceOptions, sameDeviceOptions, type DeviceLists } from "./deviceStore.js";
+import { NO_DEVICES, canSelectAudioOutput, deviceOptions, outputOptions, sameDeviceOptions, type DeviceLists } from "./deviceStore.js";
 
 /**
  * The cameras and microphones available now. Listing starts once `sync(true)` is called while the host is in the
@@ -29,23 +29,31 @@ export class DevicesController implements ReactiveController {
     else this.#stop();
   }
 
-  /** Lists the devices again. */
-  refresh = (): void => {
+  /** Lists the devices again. A newer refresh or stop drops a stale result. */
+  refresh = (): Promise<void> => {
     const devices = this.#devices;
-    if (!devices) return;
+    if (!devices) return Promise.resolve();
     const run = (this.#run += 1);
-    devices.enumerateDevices().then(
+    return devices.enumerateDevices().then(
       (found) => {
         if (run !== this.#run) return;
-        const next = { camera: deviceOptions(found, "camera"), microphone: deviceOptions(found, "microphone") };
+        const next = {
+          camera: deviceOptions(found, "camera"),
+          microphone: deviceOptions(found, "microphone"),
+          speaker: canSelectAudioOutput() ? outputOptions(found) : [],
+        };
         const previous = this.#lists;
-        if (sameDeviceOptions(previous.camera, next.camera) && sameDeviceOptions(previous.microphone, next.microphone)) {
+        if (
+          sameDeviceOptions(previous.camera, next.camera) &&
+          sameDeviceOptions(previous.microphone, next.microphone) &&
+          sameDeviceOptions(previous.speaker, next.speaker)
+        ) {
           return;
         }
         this.#lists = next;
         this.#host.requestUpdate();
       },
-      () => {},
+      () => undefined,
     );
   };
 

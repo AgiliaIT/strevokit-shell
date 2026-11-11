@@ -51,11 +51,13 @@ export function mount(target: string | HTMLElement, options: MountOptions): Shel
 // @public
 export interface MountOptions {
     readonly appearance?: MeetingShellAppearance;
+    readonly getJoinToken?: () => Promise<string>;
     readonly hideEndMeeting?: boolean;
     readonly logger?: MeetingLogger;
     readonly onClosed?: (event: MeetingShellClosedEvent) => void;
     readonly onJoined?: (event: MeetingShellJoinedEvent) => void;
     readonly realtimeUrl?: string;
+    readonly reconnectWindowMs?: number;
     readonly token: string;
 }
 
@@ -92,6 +94,7 @@ export class StrevokitMeetingElement extends LitElement {
     protected createRenderRoot(): HTMLElement;
     // (undocumented)
     disconnectedCallback(): void;
+    getJoinToken: (() => Promise<string>) | null;
     hideEndMeeting: boolean;
     leave(): Promise<void>;
     logger: MeetingLogger | null;
@@ -112,6 +115,13 @@ export class StrevokitMeetingElement extends LitElement {
         logger: {
             attribute: boolean;
         };
+        getJoinToken: {
+            attribute: boolean;
+        };
+        reconnectWindowMs: {
+            type: NumberConstructor;
+            attribute: string;
+        };
         hideEndMeeting: {
             type: BooleanConstructor;
             attribute: string;
@@ -119,6 +129,7 @@ export class StrevokitMeetingElement extends LitElement {
         };
     };
     realtimeUrl: string | null;
+    reconnectWindowMs: number | null;
     // (undocumented)
     removeEventListener<K extends keyof MeetingShellEventMap>(type: K, listener: (this: StrevokitMeetingElement, event: MeetingShellEventMap[K]) => unknown, options?: boolean | EventListenerOptions): void;
     // (undocumented)

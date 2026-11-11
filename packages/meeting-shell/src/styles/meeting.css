@@ -423,14 +423,24 @@ strevokit-meeting[data-svk-appearance] .svk-room {
   min-height: 0;
 }
 
+strevokit-meeting[data-svk-appearance] .svk-layout {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+
 strevokit-meeting[data-svk-appearance] .svk-stage {
   position: relative;
   display: flex;
   flex-direction: column;
   flex: 1;
+  min-width: 0;
   min-height: 0;
   padding: var(--svk-gap);
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 strevokit-meeting[data-svk-appearance] .svk-meeting-message {
@@ -478,20 +488,30 @@ strevokit-meeting[data-svk-appearance] .svk-tiles {
   min-height: 0;
 }
 
-/* Solo: keep 16:9 but fit inside the stage (center and narrow when the box is short). */
-strevokit-meeting[data-svk-appearance] .svk-tiles[data-count="1"] {
-  display: grid;
-  place-items: center;
-  height: 100%;
-  container-type: size;
+/* One person is the whole stage. Two people share one row, each the full stage height, including a narrow meeting. */
+strevokit-meeting[data-svk-appearance] .svk-tiles[data-count="1"],
+strevokit-meeting[data-svk-appearance] .svk-tiles[data-count="2"] {
+  min-width: 0;
+  grid-template-rows: minmax(0, 1fr);
+  align-items: stretch;
+  justify-items: stretch;
 }
 
-strevokit-meeting[data-svk-appearance] .svk-tiles[data-count="1"] .svk-tile {
-  width: min(100cqw, calc(100cqh * 16 / 9));
-  max-width: 100%;
-  max-height: 100cqh;
-  height: auto;
-  aspect-ratio: 16 / 9;
+strevokit-meeting[data-svk-appearance] .svk-tiles[data-count="1"] {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+strevokit-meeting[data-svk-appearance] .svk-tiles[data-count="2"] {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+strevokit-meeting[data-svk-appearance] .svk-tiles[data-count="1"] .svk-tile,
+strevokit-meeting[data-svk-appearance] .svk-tiles[data-count="2"] .svk-tile {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  aspect-ratio: auto;
 }
 
 strevokit-meeting[data-svk-appearance] .svk-tile {
@@ -553,24 +573,18 @@ strevokit-meeting[data-svk-appearance] .svk-tile[data-variant="screen"] .svk-vid
   object-fit: contain;
 }
 
-/* Screen share spotlight: while a share is active the shared screen fills the stage as the meeting focus and the
-   camera tiles sit in a strip below it. Without the attribute the default grid above applies unchanged. */
-strevokit-meeting[data-svk-appearance] .svk-tiles[data-layout="spotlight"] {
+/* While a share is active the shared screen fills the stage. The list contains only that tile, so no camera row is reserved. */
+strevokit-meeting[data-svk-appearance] .svk-tiles[data-layout="share"] {
   height: 100%;
   grid-template-rows: minmax(0, 1fr);
-  align-content: start;
 }
 
-strevokit-meeting[data-svk-appearance] .svk-tiles[data-layout="spotlight"] .svk-tile[data-variant="screen"] {
+strevokit-meeting[data-svk-appearance] .svk-tiles[data-layout="share"] .svk-tile[data-variant="screen"] {
   grid-column: 1 / -1;
-  grid-row: 1;
   aspect-ratio: auto;
+  width: 100%;
   height: 100%;
   min-height: 0;
-}
-
-strevokit-meeting[data-svk-appearance] .svk-tiles[data-layout="spotlight"] .svk-tile[data-variant="camera"] {
-  max-height: 200px;
 }
 
 strevokit-meeting[data-svk-appearance] .svk-tile-label {
@@ -638,6 +652,10 @@ strevokit-meeting[data-svk-appearance] .svk-menu-button {
   padding: 8px;
 }
 
+strevokit-meeting[data-svk-appearance] .svk-menu-button-labeled {
+  padding: 8px 14px;
+}
+
 strevokit-meeting[data-svk-appearance] .svk-menu-list {
   position: absolute;
   bottom: calc(100% + 8px);
@@ -691,7 +709,7 @@ strevokit-meeting[data-svk-appearance] .svk-menu-label {
   white-space: nowrap;
 }
 
-/* Participant list */
+/* Participant list — overlays the stage below 768px of meeting width; docks beside it at 768px+. */
 
 strevokit-meeting[data-svk-appearance] .svk-participants {
   position: absolute;
@@ -702,9 +720,12 @@ strevokit-meeting[data-svk-appearance] .svk-participants {
   z-index: 1;
   display: flex;
   flex-direction: column;
-  width: min(340px, calc(100% - 2 * var(--svk-gap)));
+  gap: 8px;
+  width: min(320px, calc(100% - 2 * var(--svk-gap)));
+  max-width: 100%;
   margin: 0;
   padding: 12px;
+  overflow-x: hidden;
   overflow-y: auto;
   border: 1px solid var(--svk-border);
   border-radius: var(--svk-radius);
@@ -712,9 +733,23 @@ strevokit-meeting[data-svk-appearance] .svk-participants {
   color: var(--svk-text);
 }
 
+strevokit-meeting[data-svk-appearance] .svk-participants-header {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
 strevokit-meeting[data-svk-appearance] .svk-participants-heading {
-  margin: 0 0 8px;
+  margin: 0;
+  min-width: 0;
   font-size: 1rem;
+}
+
+strevokit-meeting[data-svk-appearance] .svk-participants-close {
+  flex: none;
 }
 
 strevokit-meeting[data-svk-appearance] .svk-participant-list {
@@ -728,11 +763,36 @@ strevokit-meeting[data-svk-appearance] .svk-participant-list {
 
 strevokit-meeting[data-svk-appearance] .svk-participant {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
   padding: 8px;
   border-radius: 8px;
   background: var(--svk-surface);
+}
+
+strevokit-meeting[data-svk-appearance] .svk-participant-avatar {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+}
+
+strevokit-meeting[data-svk-appearance] .svk-participant-avatar .svk-initials {
+  width: 36px;
+  height: 36px;
+  border-color: var(--svk-border);
+  color: var(--svk-text);
+  font-size: 0.875rem;
+}
+
+strevokit-meeting[data-svk-appearance] .svk-participant-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
 }
 
 strevokit-meeting[data-svk-appearance] .svk-participant-name {
@@ -837,7 +897,7 @@ strevokit-meeting[data-svk-appearance] .svk-dialog-actions {
   margin-top: 8px;
 }
 
-/* Narrow containers: icon-only controls (names stay for assistive technology), full-width participant sheet. */
+/* Narrow containers: icon-only controls (names stay for assistive technology). */
 
 @container (max-width: 479px) {
   strevokit-meeting[data-svk-appearance] .svk-toolbar .svk-label,
@@ -866,10 +926,17 @@ strevokit-meeting[data-svk-appearance] .svk-dialog-actions {
     display: inline;
   }
 
-  strevokit-meeting[data-svk-appearance] .svk-participants {
-    inset: 0;
-    width: 100%;
-    border-radius: 0;
+  strevokit-meeting[data-svk-appearance] .svk-participants .svk-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
   }
 
   strevokit-meeting[data-svk-appearance] .svk-join {
@@ -880,6 +947,106 @@ strevokit-meeting[data-svk-appearance] .svk-dialog-actions {
   strevokit-meeting[data-svk-appearance] .svk-prejoin {
     padding: 12px;
   }
+}
+
+/* Dock the participants panel beside the stage when the meeting is wide enough. */
+
+@container (min-width: 768px) {
+  strevokit-meeting[data-svk-appearance] .svk-participants {
+    position: relative;
+    inset: auto;
+    top: auto;
+    right: auto;
+    bottom: auto;
+    left: auto;
+    z-index: auto;
+    flex: none;
+    align-self: stretch;
+    width: 320px;
+    max-width: none;
+    margin: 0;
+    border-radius: 0;
+    border-top: none;
+    border-right: none;
+    border-bottom: none;
+  }
+}
+
+/* Full screen presentation: share fills the meeting; Exit and Show controls stay up. */
+
+strevokit-meeting[data-svk-appearance] .svk-room[data-presentation="true"] {
+  position: relative;
+}
+
+strevokit-meeting[data-svk-appearance] .svk-room[data-presentation="true"] .svk-stage {
+  overflow: hidden;
+}
+
+strevokit-meeting[data-svk-appearance] .svk-room[data-presentation="true"] .svk-tiles[data-layout="share"] {
+  height: 100%;
+}
+
+strevokit-meeting[data-svk-appearance] .svk-room[data-presentation="true"] .svk-tiles[data-layout="share"] .svk-video {
+  object-fit: contain;
+}
+
+strevokit-meeting[data-svk-appearance] .svk-room[data-presentation="true"] .svk-tile-footer,
+strevokit-meeting[data-svk-appearance] .svk-room[data-presentation="true"] .svk-tile-name,
+strevokit-meeting[data-svk-appearance] .svk-room[data-presentation="true"] .svk-tile-label {
+  display: none;
+}
+
+strevokit-meeting[data-svk-appearance] .svk-fullscreen-refusal {
+  margin: 0 0 var(--svk-gap);
+  padding: 8px 12px;
+  border: 1px solid var(--svk-border);
+  border-radius: 8px;
+  background: var(--svk-surface-raised);
+  color: var(--svk-text);
+  font-size: 0.875rem;
+}
+
+strevokit-meeting[data-svk-appearance] .svk-room[data-presentation="true"] .svk-controls {
+  position: absolute;
+  inset: auto 0 0 0;
+  z-index: 3;
+  border-top: none;
+  background: transparent;
+  pointer-events: none;
+}
+
+strevokit-meeting[data-svk-appearance] .svk-room[data-presentation="true"] .svk-toolbar {
+  justify-content: center;
+  pointer-events: none;
+}
+
+strevokit-meeting[data-svk-appearance] .svk-room[data-presentation="true"] .svk-fullscreen-trigger,
+strevokit-meeting[data-svk-appearance] .svk-room[data-presentation="true"] .svk-show-controls-trigger {
+  pointer-events: auto;
+  background: var(--svk-surface-raised);
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.25);
+}
+
+/* Beat .svk-button / .svk-control-group display so [hidden] stays visually hidden. */
+strevokit-meeting[data-svk-appearance] .svk-room[data-presentation="true"] .svk-toolbar-standard[hidden] {
+  display: none;
+}
+
+strevokit-meeting[data-svk-appearance] .svk-room[data-presentation="true"][data-controls-revealed="true"] .svk-toolbar {
+  flex-wrap: wrap;
+  padding: 8px;
+  border-radius: 12px 12px 0 0;
+  background: rgb(0 0 0 / 0.55);
+  pointer-events: auto;
+}
+
+strevokit-meeting[data-svk-appearance] .svk-room[data-presentation="true"][data-controls-revealed="true"] .svk-toolbar-standard {
+  pointer-events: auto;
+}
+
+strevokit-meeting[data-svk-appearance] .svk-room[data-presentation="true"] .svk-button {
+  min-width: var(--svk-target);
+  min-height: var(--svk-target);
 }
 
 @media (prefers-reduced-motion: reduce) {

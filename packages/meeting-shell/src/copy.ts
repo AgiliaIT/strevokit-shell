@@ -22,6 +22,7 @@ export const LABELS = {
   controls: "Meeting controls",
   tiles: "Participants' video",
   participantsDialog: "Participants",
+  closeParticipants: "Close participants",
   participants: (count: number) => `Participants (${count})`,
   you: "(You)",
   host: "Host",
@@ -29,7 +30,7 @@ export const LABELS = {
   guest: "Guest",
   connected: "Connected",
   connecting: "Connecting…",
-  interrupted: "Connection interrupted",
+  interrupted: "Reconnecting…",
   turnOnSound: "Turn on sound",
   pickingUpSound: "Microphone is picking up sound",
   cameraOff: "Camera is off",
@@ -37,10 +38,16 @@ export const LABELS = {
   microphone: "Microphone",
   camera: "Camera",
   shareScreen: "Share screen",
+  fullScreen: "Full screen",
+  exitFullScreen: "Exit full screen",
+  showControls: "Show controls",
   microphoneDevice: "Microphone device",
   cameraDevice: "Camera device",
   chooseMicrophone: "Choose microphone",
   chooseCamera: "Choose camera",
+  chooseSpeaker: "Choose speaker",
+  speaker: "Speaker",
+  genericSpeaker: (index: number) => `Speaker ${index}`,
   microphoneOffBadge: "microphone off",
   tryAgain: "Try again",
   tryDeviceAgain: (kind: DeviceKind) => `Try ${kind} again`,
@@ -63,6 +70,13 @@ export const END_MEETING_DIALOG = {
 
 export const END_MEETING_FAILED = "The meeting couldn't be ended. Try again.";
 
+/** Shown when incoming audio cannot be sent to the chosen speaker. */
+export const SPEAKER_FAILURE: CatalogueCopy = {
+  message: "Couldn't switch speakers.",
+  guidance: "Try again.",
+  retry: true,
+};
+
 export const ANNOUNCEMENTS = {
   joined: "Joined the meeting",
   microphoneOn: "Microphone on",
@@ -71,12 +85,17 @@ export const ANNOUNCEMENTS = {
   cameraOff: "Camera off",
   screenSharingOn: "Screen sharing on",
   screenSharingOff: "Screen sharing off",
+  fullScreenOn: "Full screen on",
+  fullScreenOff: "Full screen off",
   switchedTo: (device: string) => `Switched to ${device}`,
   participantJoined: (name: string) => `${name} joined`,
   participantLeft: (name: string) => `${name} left`,
   reconnected: "Reconnected",
   endMeetingFailed: "The meeting couldn't be ended. Try again.",
 } as const;
+
+/** Visible notice when the shared screen cannot fill the display. */
+export const FULL_SCREEN_REFUSAL = "Couldn't fill the display. The shared screen is expanded in the meeting.";
 
 /** One failure as the participant sees it: what happened, what to do next, and whether a retry action is offered. */
 export interface CatalogueCopy {
@@ -280,15 +299,21 @@ export function meetingErrorRoute(code: string): MeetingErrorRoute {
   return Object.hasOwn(MEETING_ERRORS, code) ? MEETING_ERRORS[code as MeetingErrorCode] : GENERIC_NOTICE_ROUTE;
 }
 
-/** What the connection banner says: reconnecting (online or offline), or audio and video failed. */
-export type BannerVariant = "reconnecting" | "reconnecting_offline" | "failed_reconnect" | "failed_connect";
+/** What the connection banner says: reconnecting (local, peer, or offline), or audio and video failed. */
+export type BannerVariant =
+  | "reconnecting"
+  | "peer_reconnecting"
+  | "reconnecting_offline"
+  | "failed_reconnect"
+  | "failed_connect";
 
-const RECONNECTING = "Connection lost — reconnecting…";
+const MEETING_RECONNECTING = "Meeting connection lost — reconnecting…";
 const LEAVE_AND_JOIN = "Leave the meeting, then join again.";
 
 export const CONNECTION_BANNER = {
-  reconnecting: { message: RECONNECTING, retry: false },
-  reconnecting_offline: { message: RECONNECTING, guidance: "Check your internet connection.", retry: false },
+  reconnecting: { message: MEETING_RECONNECTING, retry: false },
+  peer_reconnecting: { message: "Audio and video interrupted — reconnecting…", retry: false },
+  reconnecting_offline: { message: MEETING_RECONNECTING, guidance: "Check your internet connection.", retry: false },
   failed_reconnect: { message: "Audio and video couldn't reconnect.", guidance: LEAVE_AND_JOIN, retry: false },
   failed_connect: { message: "Audio and video couldn't connect.", guidance: LEAVE_AND_JOIN, retry: false },
 } as const satisfies Record<BannerVariant, CatalogueCopy>;

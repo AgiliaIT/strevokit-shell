@@ -54,3 +54,14 @@ export const soundIcon = (): TemplateResult =>
 export const warningIcon = (): TemplateResult => icon(svg`<path d="M12 3l10 18H2zM12 10v4M12 17.5v.5" />`);
 
 export const checkIcon = (): TemplateResult => icon(svg`<path d="M5 12l5 5 9-10" />`);
+
+export const closeIcon = (): TemplateResult => icon(svg`<path d="M6 6l12 12M18 6L6 18" />`);
+
+export const fullScreenIcon = (): TemplateResult =>
+  icon(svg`<path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5" />`);
+
+export const exitFullScreenIcon = (): TemplateResult =>
+  icon(svg`<path d="M8 3v5H3M16 3v5h5M8 21v-5H3M16 21v-5h5" />`);
+
+export const showControlsIcon = (): TemplateResult =>
+  icon(svg`<circle cx="6" cy="12" r="1.5" fill="currentColor" stroke="none" /><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none" /><circle cx="18" cy="12" r="1.5" fill="currentColor" stroke="none" />`);

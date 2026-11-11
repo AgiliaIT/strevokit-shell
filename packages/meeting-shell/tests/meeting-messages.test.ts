@@ -10,8 +10,9 @@ import { setBrowserOnline } from "./support/fakeBrowser.js";
 import { participant, type FakeEngine } from "./support/fakeEngine.js";
 import { createShell, joinMeeting, liveRegion, settle, type Shell } from "./support/fixture.js";
 
-const RECONNECTING = "Connection lost — reconnecting…";
-const RECONNECTING_OFFLINE = "Connection lost — reconnecting… Check your internet connection.";
+const RECONNECTING = "Meeting connection lost — reconnecting…";
+const PEER_RECONNECTING = "Audio and video interrupted — reconnecting…";
+const RECONNECTING_OFFLINE = "Meeting connection lost — reconnecting… Check your internet connection.";
 const FAILED_RECONNECT = "Audio and video couldn't reconnect. Leave the meeting, then join again.";
 
 /** Joins with one remote participant whose media is connected, then switches to fake timers. */
@@ -72,10 +73,10 @@ describe("connection banner", () => {
     expect(message).toBe(meetingMessage());
     expect(message).toHaveAttribute("data-type", "banner");
     expect(message).toHaveAttribute("data-tone", "warning");
-    expect(message).toHaveTextContent(RECONNECTING);
+    expect(message).toHaveTextContent(PEER_RECONNECTING);
     expect(message).not.toHaveAttribute("role");
-    expect(liveRegion()).toHaveTextContent(RECONNECTING);
-    expect(announced.filter((text) => text === RECONNECTING)).toHaveLength(1);
+    expect(liveRegion()).toHaveTextContent(PEER_RECONNECTING);
+    expect(announced.filter((text) => text === PEER_RECONNECTING)).toHaveLength(1);
     expect(document.activeElement).toBe(focused);
     expectControlsUsable();
   });
@@ -126,7 +127,7 @@ describe("connection banner", () => {
     engine.setConnection("remote-1", "connected");
     await advance(shell, SHOW_AFTER_MS * 3);
     expect(meetingMessage()).toBeNull();
-    expect(announced.filter((text) => text === RECONNECTING || text === "Reconnected")).toEqual([]);
+    expect(announced.filter((text) => text === PEER_RECONNECTING || text === "Reconnected")).toEqual([]);
   });
 
   it("shows no banner on the pre-join screen or while joining", async () => {
@@ -190,7 +191,14 @@ describe("connection banner", () => {
     engine.setConnection("remote-1", "failed");
     await advance(shell, SHOW_AFTER_MS * 3);
     expect(meetingMessage()).toBeNull();
-    expect(announced.filter((text) => text.startsWith("Connection lost") || text.startsWith("Audio and video"))).toEqual([]);
+    expect(
+      announced.filter(
+        (text) =>
+          text.startsWith("Meeting connection lost") ||
+          text.startsWith("Audio and video") ||
+          text.startsWith("Connection lost"),
+      ),
+    ).toEqual([]);
   });
 
   it("shows and announces nothing once the element has been removed", async () => {
@@ -200,7 +208,119 @@ describe("connection banner", () => {
     shell.element.remove();
     await settle();
     await advance(shell, SHOW_AFTER_MS * 3);
-    expect(announced.filter((text) => text.startsWith("Connection lost"))).toEqual([]);
+    expect(
+      announced.filter(
+        (text) => text.startsWith("Meeting connection lost") || text.startsWith("Audio and video interrupted"),
+      ),
+    ).toEqual([]);
+  });
+});
+
+describe("meeting service recovery", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("keeps the meeting up and shows the reconnecting banner after the threshold", async () => {
+    const { shell, engine, announced } = await joinWithRemote();
+    const focused = document.activeElement;
+    engine.startReconnecting();
+    await advance(shell, SHOW_AFTER_MS - 1);
+    expect(meetingMessage()).toBeNull();
+    await advance(shell, 1);
+
+    expect(screen.getByRole("region", { name: "Meeting" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Connection lost" })).toBeNull();
+    expect(meetingMessage()).toHaveAttribute("data-type", "banner");
+    expect(meetingMessage()).toHaveAttribute("data-tone", "warning");
+    expect(meetingMessage()).toHaveTextContent(RECONNECTING);
+    expect(liveRegion()).toHaveTextContent(RECONNECTING);
+    expect(announced.filter((text) => text === RECONNECTING)).toHaveLength(1);
+    expect(document.activeElement).toBe(focused);
+    expect(shell.closed).toEqual([]);
+    expectControlsUsable();
+  });
+
+  it("clears after the connection is restored and announces Reconnected once", async () => {
+    const { shell, engine, announced } = await joinWithRemote();
+    engine.startReconnecting();
+    await advance(shell, SHOW_AFTER_MS);
+    engine.finishReconnecting();
+    await advance(shell, STABLE_MS - 1);
+    expect(meetingMessage()).toHaveTextContent(RECONNECTING);
+    await advance(shell, 1);
+    expect(meetingMessage()).toBeNull();
+    expect(announced.filter((text) => text === "Reconnected")).toHaveLength(1);
+    expect(screen.getByRole("region", { name: "Meeting" })).toBeInTheDocument();
+    expect(shell.closed).toEqual([]);
+    expect(shell.joined).toHaveLength(1);
+  });
+
+  it("shows nothing for a short interruption", async () => {
+    const { shell, engine, announced } = await joinWithRemote();
+    engine.startReconnecting();
+    await advance(shell, SHOW_AFTER_MS / 2);
+    engine.finishReconnecting();
+    await advance(shell, SHOW_AFTER_MS * 5);
+    expect(meetingMessage()).toBeNull();
+    expect(announced.filter((text) => text === RECONNECTING || text === "Reconnected")).toEqual([]);
+  });
+
+  it("never shows the final screen while reconnecting, however long it takes", async () => {
+    const { shell, engine } = await joinWithRemote();
+    engine.startReconnecting();
+    await advance(shell, 60_000);
+    expect(screen.getByRole("region", { name: "Meeting" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Connection lost" })).toBeNull();
+    expect(meetingMessage()).toHaveTextContent(RECONNECTING);
+    expect(shell.closed).toEqual([]);
+  });
+
+  it("shows the Connection lost final screen only once the engine closes after recovery ends", async () => {
+    const { shell, engine } = await joinWithRemote();
+    engine.startReconnecting();
+    await advance(shell, SHOW_AFTER_MS);
+    expect(shell.closed).toEqual([]);
+    engine.close("connection_lost", "connection_lost");
+    await shell.settle();
+    expect(screen.getByRole("heading", { name: "Connection lost" })).toBeInTheDocument();
+    expect(meetingMessage()).toBeNull();
+    await advance(shell, STABLE_MS);
+    expect(shell.closed).toEqual([{ reason: "connection_lost" }]);
+  });
+
+  it("shows the meeting-ended screen when the meeting ends during recovery", async () => {
+    const { shell, engine } = await joinWithRemote();
+    engine.startReconnecting();
+    await advance(shell, SHOW_AFTER_MS);
+    engine.close("meeting_ended", "meeting_ended");
+    await shell.settle();
+    expect(screen.getByRole("heading", { name: "The meeting has ended." })).toBeInTheDocument();
+  });
+
+  it("shows and announces nothing once leaving has started", async () => {
+    const { shell, engine, announced } = await joinWithRemote();
+    void shell.element.leave();
+    engine.startReconnecting();
+    await advance(shell, SHOW_AFTER_MS * 3);
+    expect(meetingMessage()).toBeNull();
+    expect(announced.filter((text) => text.startsWith("Meeting connection lost"))).toEqual([]);
+  });
+});
+
+describe("recovery options", () => {
+  it("forwards getJoinToken and reconnectWindowMs from the element to the engine", async () => {
+    const getJoinToken = vi.fn(() => Promise.resolve("test-token-refreshed"));
+    const shell = await createShell({ getJoinToken, reconnectWindowMs: 30_000 });
+    expect(shell.engines.last.options.getJoinToken).toBe(getJoinToken);
+    expect(shell.engines.last.options.reconnectWindowMs).toBe(30_000);
+    expect(getJoinToken).not.toHaveBeenCalled();
+  });
+
+  it("leaves both options out of the engine options when they are not set", async () => {
+    const shell = await createShell();
+    expect(shell.engines.last.options).not.toHaveProperty("getJoinToken");
+    expect(shell.engines.last.options).not.toHaveProperty("reconnectWindowMs");
   });
 });
 

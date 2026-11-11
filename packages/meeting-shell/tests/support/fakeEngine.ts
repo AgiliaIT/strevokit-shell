@@ -94,6 +94,7 @@ export class FakeEngine implements MeetingEngine {
   #pendingJoin: Deferred | null = null;
   #pendingMedia: { method: MediaMethod; done: Deferred; apply: () => void }[] = [];
   #pendingEndMeeting: Deferred | null = null;
+  #held: Partial<Record<MediaMethod, Deferred>> = {};
 
   constructor(readonly options: MeetingEngineOptions) {}
 
@@ -126,6 +127,16 @@ export class FakeEngine implements MeetingEngine {
     const previous = this.state;
     this.state = state;
     this.emit("state_changed", { state, previous });
+  }
+
+  /** Starts automatic recovery of the meeting service connection, as the engine does after an interruption. */
+  startReconnecting(): void {
+    this.#setState("reconnecting");
+  }
+
+  /** Ends recovery with the connection restored; the engine does not emit `joined` again. */
+  finishReconnecting(): void {
+    this.#setState("joined");
   }
 
   async join(): Promise<void> {
@@ -199,8 +210,28 @@ export class FakeEngine implements MeetingEngine {
     this.emit("local_media_changed", { kind, enabled, stream: next });
   }
 
+  /** Resolves the next `method` call only after the returned function runs. */
+  holdNext(method: MediaMethod): () => void {
+    const done = deferred();
+    this.#held[method] = done;
+    return () => {
+      if (this.#held[method] === done) delete this.#held[method];
+      done.resolve();
+    };
+  }
+
   #media(method: MediaMethod, args: unknown[], apply: () => void): Promise<void> {
     this.calls.push({ method, args });
+    if (this.state !== "joined") return Promise.reject(new MeetingError("not_joined"));
+    const held = this.#held[method];
+    if (held) {
+      delete this.#held[method];
+      return held.promise.then(() => this.#finishMedia(method, apply));
+    }
+    return this.#finishMedia(method, apply);
+  }
+
+  #finishMedia(method: MediaMethod, apply: () => void): Promise<void> {
     if (this.state !== "joined") return Promise.reject(new MeetingError("not_joined"));
     const outcome = this.mediaOutcomes[method];
     if (outcome === "pending") {

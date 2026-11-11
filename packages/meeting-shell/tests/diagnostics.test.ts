@@ -275,7 +275,11 @@ describe("shell entries", () => {
       await shell.settle();
       setBrowserOnline(true);
       await shell.settle();
-      expect(failures()).toHaveLength(1);
+      expect(failures()).toEqual([
+        { surface: "banner", phase: "in_meeting", code: "media_interrupted" },
+        { surface: "banner", phase: "in_meeting", code: "browser_offline" },
+        { surface: "banner", phase: "in_meeting", code: "media_interrupted" },
+      ]);
       engine.setConnection("remote-1", "connected");
       await advance(shell, STABLE_MS);
       expect(recoveries()).toEqual([{ surface: "banner", phase: "in_meeting", interruptedMs: STABLE_MS }]);

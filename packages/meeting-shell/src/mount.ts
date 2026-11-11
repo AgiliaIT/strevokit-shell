@@ -45,6 +45,8 @@ export function mount(target: string | HTMLElement, options: MountOptions): Shel
   if (options.realtimeUrl !== undefined) element.realtimeUrl = options.realtimeUrl;
   if (options.logger !== undefined) element.logger = options.logger;
   if (options.hideEndMeeting !== undefined) element.hideEndMeeting = options.hideEndMeeting;
+  if (options.getJoinToken !== undefined) element.getJoinToken = options.getJoinToken;
+  if (options.reconnectWindowMs !== undefined) element.reconnectWindowMs = options.reconnectWindowMs;
   element.token = token;
 
   const listeners: Listeners = { joined: new Set(), closed: new Set() };

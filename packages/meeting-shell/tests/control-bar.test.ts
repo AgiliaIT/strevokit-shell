@@ -1,5 +1,7 @@
 import { screen, within } from "@testing-library/dom";
 import { describe, expect, it } from "vitest";
+import { participant } from "./support/fakeEngine.js";
+import { fakeStream } from "./support/fakeMediaDevices.js";
 import { createShell, joinMeeting } from "./support/fixture.js";
 
 function toolbar(): HTMLElement {
@@ -262,5 +264,46 @@ describe("control bar", () => {
     await shell.settle();
     expect(share).toHaveAttribute("aria-pressed", "false");
     expect(engine.callsTo("stopScreenShare")).toHaveLength(0);
+  });
+
+  it("shows Full screen after Share screen and before Participants while a share is on", async () => {
+    const shell = await createShell();
+    await joinMeeting(shell);
+    expect(within(toolbar()).queryByRole("button", { name: "Full screen" })).toBeNull();
+
+    const share = within(toolbar()).getByRole("button", { name: "Share screen" });
+    await shell.user.click(share);
+    await shell.settle();
+
+    const buttons = within(toolbar()).getAllByRole("button");
+    const names = buttons.map((button) => button.getAttribute("aria-label") ?? button.getAttribute("title") ?? button.textContent);
+    const shareIndex = names.findIndex((name) => name === "Share screen" || name?.includes("Share screen"));
+    const fullScreenIndex = names.findIndex((name) => name === "Full screen");
+    const participantsIndex = names.findIndex((name) => name?.startsWith("Participants"));
+    expect(fullScreenIndex).toBeGreaterThan(shareIndex);
+    expect(participantsIndex).toBeGreaterThan(fullScreenIndex);
+    const fullScreen = within(toolbar()).getByRole("button", { name: "Full screen" });
+    expect(fullScreen.tagName).toBe("BUTTON");
+    expect(within(fullScreen).getByText("Full screen")).toBeInTheDocument();
+  });
+
+  it("shows Full screen for a participant with a remote share and does not show Share screen or End meeting", async () => {
+    const shell = await createShell({
+      engine: (engine) => {
+        engine.selfRole = "participant";
+      },
+    });
+    await joinMeeting(shell);
+    expect(within(toolbar()).queryByRole("button", { name: "Full screen" })).toBeNull();
+    expect(within(toolbar()).queryByRole("button", { name: "Share screen" })).toBeNull();
+    expect(within(toolbar()).queryByRole("button", { name: "End meeting" })).toBeNull();
+
+    shell.engines.last.addParticipant(participant("remote-1", "Ada Lovelace", "host"));
+    shell.engines.last.setRemoteMedia("remote-1", "screen", true, fakeStream("screen"));
+    await shell.settle();
+
+    expect(within(toolbar()).getByRole("button", { name: "Full screen" })).toBeInTheDocument();
+    expect(within(toolbar()).queryByRole("button", { name: "Share screen" })).toBeNull();
+    expect(within(toolbar()).queryByRole("button", { name: "End meeting" })).toBeNull();
   });
 });

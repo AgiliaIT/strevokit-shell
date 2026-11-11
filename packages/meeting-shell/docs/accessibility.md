@@ -8,23 +8,35 @@ technology, browser focus handling, and in-page search see it like the rest of y
 ## Keyboard
 
 - Every control is a native button, select, or dialog element. Everything works with Tab, Shift+Tab, Enter, Space, and
-  Escape, in visual order, with a visible focus ring.
+  Escape, in visual order, with a visible focus ring (including the participants panel, presentation overlays, and
+  Full screen / Exit full screen / Show controls).
 - Device menus open from the arrow buttons next to the microphone and camera, with Enter, Space, or the Up and Down
   arrow keys. Up, Down, Home, and End move between devices; Enter or Space chooses one; Escape closes the menu and
-  returns focus to its button.
-- The participant list opens from **Participants**. Escape closes it and returns focus to that button.
-- The End meeting confirmation dialog opens from **End meeting** (for hosts). Initial focus is on **Cancel**. Tab moves between Cancel and End meeting. Escape or Cancel closes the dialog and returns focus to the End meeting button.
+  returns focus to its button. Where the browser can choose a speaker, a Speaker menu opens the same way.
+- The participant list opens from **Participants** as a complementary region named **Participants**, not a dialog.
+  Focus is not trapped. **Close participants** and Escape close it and return focus to the Participants button.
+- While a shared screen is on stage, **Full screen** enters presentation. The same control becomes **Exit full screen**;
+  focus stays on it when the name changes. **Show controls** (`aria-pressed`) reveals Microphone, Camera,
+  Participants, Leave, and Share screen for a host. Enter and Space activate them. Escape closes the participants
+  panel first (and returns focus to Participants); when the panel is already closed, Escape leaves presentation.
+  When the meeting element is browser-fullscreen, the browser handles Escape and the shell follows `fullscreenchange`.
+  Entering or leaving presentation announces through the polite live region without moving focus.
+- The End meeting confirmation dialog opens from **End meeting** (for hosts). Initial focus is on **Cancel**. Tab moves
+  between Cancel and End meeting. Escape or Cancel closes the dialog and returns focus to the End meeting button.
 
 ## Screen readers
 
 - Icon-only controls have accessible names, and toggles expose their state (`aria-pressed`). The controls are grouped
   in a toolbar named **Meeting controls**.
 - Changes are announced through a polite live region without moving focus: joining, your microphone and camera turning
-  on or off, switching devices, other participants joining or leaving, device problems, and the meeting ending.
+  on or off, switching devices, other participants joining or leaving, device problems, full screen on and off, and the
+  meeting ending.
 - When the connection to the meeting is interrupted, a connection banner appears above the video tiles and its text is
-  announced once. It is announced again only if it changes from reconnecting to failed, or back. When the connection
-  recovers, the banner disappears and "Reconnected" is announced. A short interruption that recovers within a second
-  shows and announces nothing.
+  announced once. The text names whether the meeting connection or audio and video is recovering, without blaming a
+  participant. It is announced again when that meaning changes (for example meeting-service recovery to audio and
+  video interruption, or reconnecting to failed, or back), but not when meeting-service recovery only toggles the
+  offline guidance. When the connection recovers, the banner disappears and "Reconnected" is announced. A short
+  interruption that recovers within a second shows and announces nothing.
 - Other problems during the meeting appear as a notice in the same place above the tiles, and are announced when they
   appear. The banner takes priority: a notice waits underneath it and is shown and announced once the banner clears.
 - Neither the banner nor a notice moves focus, and the meeting controls stay usable while they are shown. A notice has
@@ -46,11 +58,14 @@ technology, browser focus handling, and in-page search see it like the rest of y
   light and dark appearances, with the default colours.
 - State is never shown by colour alone: muted and camera-off states also change the icon and the text. The connection
   banner and notices always pair a warning icon with text, in both the warning and the danger tone.
-- Interactive controls are at least 44 by 44 CSS pixels (`--svk-target`).
-- The layout follows the width of the element, not the window. Down to a 320px wide element, the microphone, camera,
-  participants, and leave controls stay visible without horizontal scrolling. Below 480px the text labels are hidden
-  visually but keep their accessible names.
-- Animations are turned off when the user prefers reduced motion.
+- Interactive controls are at least 44 by 44 CSS pixels (`--svk-target`), including Full screen, Exit full screen, Show
+  controls, Close participants, and the critical meeting controls.
+- Width adaptations use the meeting element's own width (container queries on `<strevokit-meeting>`), not the browser
+  window. Down to a 320px wide element, the microphone, camera, participants, and leave controls stay visible without
+  horizontal scrolling. Below 480px the text labels are hidden visually but keep their accessible names. Below 768px of
+  meeting width the participants panel overlays the stage; at 768px and wider it docks beside the stage.
+- Animations and transitions are turned off when the user prefers reduced motion, including presentation chrome
+  reveal. Hover reveal during full screen does not rely on a long animation.
 
 ## How it's checked
 

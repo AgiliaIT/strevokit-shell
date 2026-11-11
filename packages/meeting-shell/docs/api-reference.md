@@ -30,8 +30,9 @@ doesn't throw and defines nothing; the element starts when the page loads in the
 
 1. **Pre-join screen.** A camera preview, a microphone level meter, camera and microphone choices, on/off toggles, and
    a **Join meeting** button. Nothing is sent to the meeting until the user joins.
-2. **Meeting.** Video tiles for everyone, the control bar (microphone, camera, device menus, participants, leave), and
-   the participant list.
+2. **Meeting.** Video tiles for everyone, the control bar (microphone, camera, device menus, a speaker menu where the
+   browser can choose where meeting audio plays, participants, leave), and the participant list. The speaker menu
+   works like the camera and microphone menus.
 3. **Final screen.** A short message explaining why the meeting ended. `svk-closed` fires (and `onClosed` is called)
    when it appears.
 
@@ -63,6 +64,8 @@ It throws a `TypeError` synchronously, and creates nothing, when:
 | `onClosed` | `(event: MeetingShellClosedEvent) => void` | no | Called exactly once when the final screen appears. Not called after `destroy()`. |
 | `logger` | `MeetingLogger` | no | Diagnostics sink for the meeting engine and the shell's own [failure entries](#shell-diagnostics-entries). It never receives the join token. |
 | `hideEndMeeting` | `boolean` | no | When `true`, hides the "End meeting" button from hosts. Default `false`. |
+| `getJoinToken` | `() => Promise<string>` | no | Called when the meeting needs a fresh join token to restore a lost connection and the token in memory can't be used. Resolve with a token your backend issued for the same participant; reject to give up. Kept in memory only and never logged. |
+| `reconnectWindowMs` | `number` | no | How long, in milliseconds, to keep trying to restore a lost connection. Default `120000`; values outside `1000`–`600000` are clamped. |
 
 ## `ShellHandle`
 
@@ -94,6 +97,8 @@ The class behind `<strevokit-meeting>`. Create the element in markup, with `docu
 | `realtime-url` | `realtimeUrl` | `string \| null` | `null` | Realtime endpoint. Not secret, so an attribute is fine. |
 | — | `token` | `string \| null` | `null` | Join token. **Property only**: a `token` attribute is ignored. Never written to an attribute, logged, or put in events. |
 | — | `logger` | `MeetingLogger \| null` | `null` | Diagnostics sink for the meeting engine and the shell's own [failure entries](#shell-diagnostics-entries). It never receives the token. |
+| — | `getJoinToken` | `(() => Promise<string>) \| null` | `null` | Fresh-token callback used to restore a lost connection. **Property only.** Read when the meeting session starts. Never logged. |
+| `reconnect-window-ms` | `reconnectWindowMs` | `number \| null` | `null` | How long, in milliseconds, to keep trying to restore a lost connection. Read when the meeting session starts. |
 | `hide-end-meeting` | `hideEndMeeting` | `boolean` | `false` | When `true`, hides the "End meeting" button from hosts. Reflected to the attribute. |
 
 The element also sets a `data-svk-appearance` attribute on itself for the stylesheet. It is not an input.
@@ -197,8 +202,9 @@ logger.info?.("meeting shell connection recovered", fields);
 
 - One entry per failure when it becomes visible. A message that stays on screen writes nothing more until it is cleared
   and shown again. A repeat of the current notice within 5 seconds writes nothing.
-- The connection banner writes an entry when it appears and when it changes between reconnecting and failed, not when
-  it switches between reconnecting and offline. Interruptions that recover within a second write nothing.
+- The connection banner writes an entry when it appears, when it changes between reconnecting and failed, and when the
+  failure code changes (for example audio/video interruption ↔ offline). Meeting-service recovery ↔ offline does not
+  write again. Interruptions that recover within a second write nothing.
 - Leaving the meeting yourself writes nothing, and nothing is written after leaving has started or after the element
   was removed from the page.
 - Entries never contain the join token, participant IDs, display names, device IDs or labels, error messages, stack

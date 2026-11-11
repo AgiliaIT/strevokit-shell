@@ -7,6 +7,58 @@ the meeting SDK version built into it, and lists changes to the documented `--sv
 
 ## [Unreleased]
 
+No changes to the documented `--svk-*` variables.
+
+### Changed
+
+- One person and two people fill the stage; three or more stay a wrapping gallery that scrolls only inside the stage.
+- While anyone is sharing a screen, that share alone fills the stage (no camera strip beneath it). Stopping the share
+  restores the gallery.
+- The participants list is a side panel that overlays the stage below 768px of meeting width and docks beside the stage
+  at 768px and wider.
+- **Full screen** during a share hides nonessential chrome so the share can fill the display. If the display cannot be
+  filled, the same chrome-hidden layout runs inside the meeting with a plain-language notice. **Exit full screen** and
+  **Show controls** stay reachable; leaving restores the participants panel to how it was on entry.
+
+## [0.5.0]
+
+Bundles `@strevokit/meeting-sdk` 0.8.0; the only runtime dependency is still Lit 3 (`lit` `^3.3.0`).
+No changes to the documented `--svk-*` variables.
+
+### Changed
+
+- The in-meeting device menu updates the checked camera or microphone when the switch settles. A failed switch leaves
+  the previous device checked.
+- A speaker control appears only where the browser can choose where meeting audio plays. It uses the same menu as the
+  camera and microphone.
+
+## [0.4.1]
+
+Bundles `@strevokit/meeting-sdk` 0.7.0; the only runtime dependency is still Lit 3 (`lit` `^3.3.0`).
+No changes to the documented `--svk-*` variables.
+
+### Changed
+
+- Connection banner copy names the affected connection without blaming a participant:
+  meeting-service recovery says "Meeting connection lost — reconnecting…", offline adds
+  "Check your internet connection.", and audio/video interruption says
+  "Audio and video interrupted — reconnecting…".
+- Distinct degraded banner variants (for example meeting-service recovery vs audio/video
+  interruption) are announced again for screen readers; meeting-service ↔ offline still stays quiet.
+- Remote tile and participants-list interrupted status says "Reconnecting…" instead of
+  "Connection interrupted".
+
+## [0.4.0]
+
+Bundles `@strevokit/meeting-sdk` 0.7.0; the only runtime dependency is still Lit 3 (`lit` `^3.3.0`).
+No changes to the documented `--svk-*` variables.
+
+### Added
+
+- Optional `getJoinToken` and `reconnectWindowMs` on mount / element settings, forwarded to the meeting engine.
+- Local meeting-service recovery drives the existing connection banner (`meetingServiceStatus`) so mid-call drops
+  show "Connection lost — reconnecting…" while the session stays in-meeting.
+
 ## [0.3.1]
 
 Bundles `@strevokit/meeting-sdk` 0.6.0; the only runtime dependency is still Lit 3 (`lit` `^3.3.0`).

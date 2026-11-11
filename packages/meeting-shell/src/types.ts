@@ -47,6 +47,14 @@ export interface MountOptions {
   readonly logger?: MeetingLogger;
   /** Whether to hide the End meeting button from hosts. Default `false`. */
   readonly hideEndMeeting?: boolean;
+  /**
+   * Called when the meeting needs a fresh join token to restore a lost connection and the token in memory can't be
+   * used. Resolve with a token issued by your backend for the same participant; reject to give up. The token is kept
+   * in memory only and never logged.
+   */
+  readonly getJoinToken?: () => Promise<string>;
+  /** How long, in milliseconds, to keep trying to restore a lost connection. Default 120000; range 1000–600000. */
+  readonly reconnectWindowMs?: number;
 }
 
 /** The events a {@link ShellHandle} reports. */

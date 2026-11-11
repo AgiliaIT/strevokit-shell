@@ -12,9 +12,20 @@ export interface DeviceOption {
 export interface DeviceLists {
   readonly camera: readonly DeviceOption[];
   readonly microphone: readonly DeviceOption[];
+  /** Empty when this browser cannot choose where meeting audio plays. */
+  readonly speaker: readonly DeviceOption[];
 }
 
-export const NO_DEVICES: DeviceLists = Object.freeze({ camera: Object.freeze([]), microphone: Object.freeze([]) });
+export const NO_DEVICES: DeviceLists = Object.freeze({
+  camera: Object.freeze([]),
+  microphone: Object.freeze([]),
+  speaker: Object.freeze([]),
+});
+
+/** True when the browser can send meeting audio to a chosen speaker. */
+export function canSelectAudioOutput(): boolean {
+  return typeof HTMLMediaElement !== "undefined" && typeof HTMLMediaElement.prototype.setSinkId === "function";
+}
 
 /** The choosable devices of `kind` in `devices`, with generic labels while the browser hides the real ones. */
 export function deviceOptions(devices: readonly MediaDeviceInfo[], kind: DeviceKind): DeviceOption[] {
@@ -24,6 +35,16 @@ export function deviceOptions(devices: readonly MediaDeviceInfo[], kind: DeviceK
     .map((device, index) => {
       const label = device.label.trim();
       return { deviceId: device.deviceId, label: label || LABELS.genericDevice(kind, index + 1), named: label !== "" };
+    });
+}
+
+/** Speakers the user can choose. Empty ids are omitted. A hidden browser name becomes "Speaker N". */
+export function outputOptions(devices: readonly MediaDeviceInfo[]): DeviceOption[] {
+  return devices
+    .filter((device) => device.kind === "audiooutput" && device.deviceId !== "")
+    .map((device, index) => {
+      const label = device.label.trim();
+      return { deviceId: device.deviceId, label: label || LABELS.genericSpeaker(index + 1), named: label !== "" };
     });
 }
 

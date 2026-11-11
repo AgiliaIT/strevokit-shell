@@ -1,5 +1,6 @@
 import { screen, within } from "@testing-library/dom";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { RemoteAudio } from "../src/media/remote-audio.js";
 import { participant } from "./support/fakeEngine.js";
 import { fakeStream } from "./support/fakeMediaDevices.js";
 import { createShell, joinMeeting } from "./support/fixture.js";
@@ -90,5 +91,96 @@ describe("remote audio", () => {
     expect(play.mock.calls.length).toBeGreaterThan(callsBefore);
     expect(played).toHaveLength(1);
     expect(screen.queryByRole("button", { name: "Turn on sound" })).toBeNull();
+  });
+});
+
+describe("speaker sink", () => {
+  afterEach(() => {
+    delete (HTMLMediaElement.prototype as { setSinkId?: unknown }).setSinkId;
+  });
+
+  it("applies a sink to current and later audio and restores the previous sink when rejected", async () => {
+    const calls: string[] = [];
+    (HTMLMediaElement.prototype as { setSinkId?: (sinkId: string) => Promise<void> }).setSinkId = function (sinkId: string) {
+      calls.push(sinkId);
+      if (sinkId === "speaker-9") return Promise.reject(new DOMException("browser said no", "NotAllowedError"));
+      return Promise.resolve();
+    };
+    const audio = new RemoteAudio(() => undefined);
+    const first = fakeStream("microphone");
+    audio.sync([{ key: "a", stream: first }]);
+    await audio.setSink("speaker-2");
+    const later = fakeStream("microphone");
+    audio.sync([
+      { key: "a", stream: first },
+      { key: "b", stream: later },
+    ]);
+    expect(calls).toEqual(["speaker-2", "speaker-2"]);
+    await expect(audio.setSink("speaker-9")).rejects.toThrow(/^Couldn't switch speakers\.$/u);
+    expect(calls.at(-1)).toBe("speaker-2");
+    audio.dispose();
+    expect(first.getTracks()[0]?.readyState).toBe("live");
+  });
+
+  it("assigns a player created during a sink change to the requested speaker", async () => {
+    const calls: string[] = [];
+    const held: { release: (() => void) | null } = { release: null };
+    (HTMLMediaElement.prototype as { setSinkId?: (sinkId: string) => Promise<void> }).setSinkId = function (sinkId: string) {
+      calls.push(sinkId);
+      if (held.release) return Promise.resolve();
+      return new Promise((resolve) => {
+        held.release = resolve;
+      });
+    };
+    const audio = new RemoteAudio(() => undefined);
+    const first = fakeStream("microphone");
+    audio.sync([{ key: "a", stream: first }]);
+    const switching = audio.setSink("speaker-2");
+    const later = fakeStream("microphone");
+    audio.sync([
+      { key: "a", stream: first },
+      { key: "b", stream: later },
+    ]);
+    expect(calls).toEqual(["speaker-2", "speaker-2"]);
+    held.release?.();
+    await switching;
+    audio.dispose();
+  });
+
+  it("rejects the sink change when a player added during the second wait fails", async () => {
+    const calls: string[] = [];
+    const held: Array<() => void> = [];
+    let rejectNext = false;
+    (HTMLMediaElement.prototype as { setSinkId?: (sinkId: string) => Promise<void> }).setSinkId = function (sinkId: string) {
+      calls.push(sinkId);
+      if (sinkId === "") return Promise.resolve();
+      if (rejectNext) return Promise.reject(new DOMException("browser said no", "NotAllowedError"));
+      return new Promise((resolve) => {
+        held.push(resolve);
+      });
+    };
+    const audio = new RemoteAudio(() => undefined);
+    const first = fakeStream("microphone");
+    audio.sync([{ key: "a", stream: first }]);
+    const switching = audio.setSink("speaker-2");
+    const second = fakeStream("microphone");
+    audio.sync([
+      { key: "a", stream: first },
+      { key: "b", stream: second },
+    ]);
+    expect(calls).toEqual(["speaker-2", "speaker-2"]);
+    held[0]?.();
+    // Let the first assignment settle, so the next player is added during the following wait.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    rejectNext = true;
+    audio.sync([
+      { key: "a", stream: first },
+      { key: "b", stream: second },
+      { key: "c", stream: fakeStream("microphone") },
+    ]);
+    held[1]?.();
+    await expect(switching).rejects.toThrow(/^Couldn't switch speakers\.$/u);
+    expect(calls).toEqual(["speaker-2", "speaker-2", "speaker-2", "", "", ""]);
+    audio.dispose();
   });
 });

@@ -36,6 +36,9 @@ type Health =
 
 type State = "hidden" | "pending" | "reconnecting" | "failed" | "recovering";
 
+/** The participant's own connection to the meeting service: healthy, being restored, or given up on. */
+export type MeetingServiceStatus = "ok" | "reconnecting" | "failed";
+
 function isFailed(variant: BannerVariant): boolean {
   return variant === "failed_reconnect" || variant === "failed_connect";
 }
@@ -43,6 +46,11 @@ function isFailed(variant: BannerVariant): boolean {
 function failureCode(variant: BannerVariant): BannerFailureCode {
   if (isFailed(variant)) return "media_connection_failed";
   return variant === "reconnecting_offline" ? "browser_offline" : "media_interrupted";
+}
+
+/** Meeting-service recovery and offline are one family; flapping between them stays quiet. */
+function isMeetingReconnectFamily(variant: BannerVariant): boolean {
+  return variant === "reconnecting" || variant === "reconnecting_offline";
 }
 
 /**
@@ -57,6 +65,9 @@ export class ConnectionBanner {
   readonly #now: () => number;
   readonly #records = new Map<string, ParticipantRecord>();
   #offline = false;
+  #meetingService: MeetingServiceStatus = "ok";
+  /** Whether the meeting service connection has been unhealthy since the banner last cleared. */
+  #meetingServiceDisrupted = false;
   #state: State = "hidden";
   #variant: BannerVariant | null = null;
   #shownAt = 0;
@@ -98,26 +109,45 @@ export class ConnectionBanner {
     this.#evaluate();
   }
 
+  /**
+   * The participant's own connection to the meeting service changed. Being restored counts as an interruption, giving
+   * up counts as a failure, and `"ok"` withdraws both; the banner then clears once everything has stayed healthy.
+   */
+  meetingServiceStatus(status: MeetingServiceStatus): void {
+    this.#meetingService = status;
+    if (status !== "ok") this.#meetingServiceDisrupted = true;
+    this.#evaluate();
+  }
+
   /** Forgets everything and hides the banner, without emitting anything. */
   reset(): void {
     this.#stopTimer();
     this.#records.clear();
     this.#offline = false;
+    this.#meetingService = "ok";
+    this.#meetingServiceDisrupted = false;
     this.#state = "hidden";
     this.#variant = null;
   }
 
   #health(): Health {
     let failed: ParticipantRecord | null = null;
-    let degraded = this.#offline;
-    let connected = false;
+    let peerDegraded = false;
+    // A restored meeting service connection counts as healthy, so the banner waits out the stable period.
+    let connected = this.#meetingServiceDisrupted && this.#meetingService === "ok";
     for (const record of this.#records.values()) {
       if (record.status === "failed" && (failed === null || record.everConnected)) failed = record;
-      if (record.status === "interrupted" || (record.status === "connecting" && record.everConnected)) degraded = true;
+      if (record.status === "interrupted" || (record.status === "connecting" && record.everConnected)) {
+        peerDegraded = true;
+      }
       if (record.status === "connected") connected = true;
     }
+    if (this.#meetingService === "failed") return { kind: "failed", variant: "failed_reconnect" };
     if (failed) return { kind: "failed", variant: failed.everConnected ? "failed_reconnect" : "failed_connect" };
-    if (degraded) return { kind: "degraded", variant: this.#offline ? "reconnecting_offline" : "reconnecting" };
+    // Local causes first: offline, then this client's meeting-service recovery, then peer media only.
+    if (this.#offline) return { kind: "degraded", variant: "reconnecting_offline" };
+    if (this.#meetingService === "reconnecting") return { kind: "degraded", variant: "reconnecting" };
+    if (peerDegraded) return { kind: "degraded", variant: "peer_reconnecting" };
     return { kind: connected ? "connected" : "none" };
   }
 
@@ -143,6 +173,7 @@ export class ConnectionBanner {
         if (this.#state === "pending") {
           this.#stopTimer();
           this.#state = "hidden";
+          this.#meetingServiceDisrupted = false;
         } else if (this.#state === "reconnecting" || this.#state === "failed") {
           this.#state = "recovering";
           this.#startTimer(STABLE_MS, this.#clearAfterRecovery);
@@ -151,6 +182,7 @@ export class ConnectionBanner {
       case "none":
         this.#stopTimer();
         this.#state = "hidden";
+        this.#meetingServiceDisrupted = false;
         this.#setVariant(null);
         return;
     }
@@ -168,18 +200,31 @@ export class ConnectionBanner {
     this.#timer = null;
     const interruptedMs = this.#now() - this.#shownAt;
     this.#state = "hidden";
+    this.#meetingServiceDisrupted = false;
     this.#options.announce(ANNOUNCEMENTS.reconnected);
     this.#options.report({ type: "recovery", interruptedMs });
     this.#setVariant(null);
   };
 
-  /** Shows `variant`. It is announced and reported when it first appears or switches between reconnecting and failed. */
+  /**
+   * Shows `variant`. Announces and reports on first show and when crossing failed/degraded.
+   * Distinct degraded variants (for example meeting-service vs audio/video) are announced; meeting-service
+   * ↔ offline stays quiet. Diagnostics report again only when the failure code changes.
+   */
   #show(variant: BannerVariant): void {
     const previous = this.#variant;
     if (previous === variant) return;
     if (previous === null) this.#shownAt = this.#now();
     this.#setVariant(variant);
-    if (previous !== null && isFailed(previous) === isFailed(variant)) return;
+    if (previous !== null && isFailed(previous) === isFailed(variant)) {
+      if (isFailed(variant)) return;
+      if (isMeetingReconnectFamily(previous) && isMeetingReconnectFamily(variant)) return;
+      this.#options.announce(shownText(CONNECTION_BANNER[variant]));
+      if (failureCode(previous) !== failureCode(variant)) {
+        this.#options.report({ type: "failure", code: failureCode(variant) });
+      }
+      return;
+    }
     this.#options.announce(shownText(CONNECTION_BANNER[variant]));
     this.#options.report({ type: "failure", code: failureCode(variant) });
   }

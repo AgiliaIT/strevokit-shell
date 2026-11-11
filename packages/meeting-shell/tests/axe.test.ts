@@ -71,7 +71,8 @@ describe("axe", () => {
 
     await shell.user.click(screen.getByRole("button", { name: "Participants (2)" }));
     await shell.settle();
-    expect(screen.getByRole("dialog", { name: "Participants" })).toBeInTheDocument();
+    expect(screen.getByRole("complementary", { name: "Participants" })).toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "Participants" })).toBeNull();
     expect(await violations()).toEqual([]);
 
     await shell.user.click(screen.getByRole("button", { name: "Choose camera" }));

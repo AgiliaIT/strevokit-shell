@@ -69,4 +69,24 @@ describe("screen share failures", () => {
     );
     expect(shell.element.textContent).not.toContain("protocol_error");
   });
+
+  it("stays on while the camera and microphone switch", async () => {
+    const shell = await createShell();
+    await joinMeeting(shell);
+    const engine = shell.engines.last;
+    await shell.user.click(shareButton());
+    await shell.settle();
+    expect(shareButton()).toHaveAttribute("aria-pressed", "true");
+    const stops = engine.callsTo("stopScreenShare").length;
+    await shell.user.click(within(screen.getByRole("toolbar", { name: "Meeting controls" })).getByRole("button", { name: "Choose camera" }));
+    await shell.settle();
+    await shell.user.click(screen.getByRole("menuitemradio", { name: "USB camera" }));
+    await shell.settle();
+    await shell.user.click(within(screen.getByRole("toolbar", { name: "Meeting controls" })).getByRole("button", { name: "Choose microphone" }));
+    await shell.settle();
+    await shell.user.click(screen.getByRole("menuitemradio", { name: "Headset microphone" }));
+    await shell.settle();
+    expect(shareButton()).toHaveAttribute("aria-pressed", "true");
+    expect(engine.callsTo("stopScreenShare")).toHaveLength(stops);
+  });
 });

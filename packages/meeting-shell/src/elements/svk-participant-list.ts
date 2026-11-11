@@ -2,7 +2,8 @@ import { LitElement, html, type TemplateResult } from "lit";
 import { repeat } from "lit/directives/repeat.js";
 import { LABELS } from "../copy.js";
 import type { ConnectionView, ParticipantView } from "../engine/meetingStore.js";
-import { cameraIcon, cameraOffIcon, microphoneIcon, microphoneOffIcon } from "../icons.js";
+import { cameraIcon, cameraOffIcon, closeIcon, microphoneIcon, microphoneOffIcon } from "../icons.js";
+import { initials } from "./svk-video-tile.js";
 
 const CONNECTION_TEXT: Readonly<Record<ConnectionView, string>> = {
   connected: LABELS.connected,
@@ -25,20 +26,24 @@ function mediaState(label: string, on: boolean, icon: TemplateResult): TemplateR
   </span>`;
 }
 
-/** The non-modal Participants dialog. Escape handling and focus return belong to the trigger's owner. */
+/** The in-meeting Participants complementary region. Escape handling and focus return belong to the trigger's owner. */
 export class SvkParticipantList extends LitElement {
   static override properties = {
     participants: { attribute: false },
-    dialogId: { attribute: false },
+    panelId: { attribute: false },
+    onClose: { attribute: false },
   };
 
   declare participants: readonly ParticipantView[];
-  declare dialogId: string;
+  declare panelId: string;
+  /** Closes the panel the same way Escape does. */
+  declare onClose: (() => void) | null;
 
   constructor() {
     super();
     this.participants = [];
-    this.dialogId = "";
+    this.panelId = "";
+    this.onClose = null;
   }
 
   protected override createRenderRoot(): HTMLElement {
@@ -51,33 +56,56 @@ export class SvkParticipantList extends LitElement {
   }
 
   protected override render(): TemplateResult {
-    return html`<dialog open class="svk-participants" id=${this.dialogId} aria-label=${LABELS.participantsDialog}>
-      <h3 class="svk-participants-heading">${LABELS.participantsDialog}</h3>
+    return html`<aside class="svk-participants" id=${this.panelId} aria-label=${LABELS.participantsDialog}>
+      <div class="svk-participants-header">
+        <h3 class="svk-participants-heading">${LABELS.participantsDialog}</h3>
+        <button
+          type="button"
+          class="svk-button svk-participants-close"
+          title=${LABELS.closeParticipants}
+          @click=${this.#close}
+        >
+          ${closeIcon()}<span class="svk-label">${LABELS.closeParticipants}</span>
+        </button>
+      </div>
       <ul class="svk-participant-list">
         ${repeat(
           this.participants,
           (participant) => participant.key,
           (participant) => html`<li class="svk-participant" aria-label=${participantSummary(participant)}>
-            <span class="svk-participant-name" title=${participant.name}
-              >${participant.name}${participant.isSelf ? ` ${LABELS.you}` : ""}</span
-            >
-            <span class="svk-participant-meta">
-              <span class="svk-text">${participant.role === "host" ? LABELS.host : LABELS.participant}</span>
-              <span class="svk-text" data-connection=${participant.connection}
-                >${CONNECTION_TEXT[participant.connection]}</span
-              >
+            <span class="svk-participant-avatar" aria-hidden="true">
+              <span class="svk-initials" aria-hidden="true">${initials(participant.name)}</span>
             </span>
-            <span class="svk-participant-media">
-              ${mediaState(
-                LABELS.microphone,
-                participant.microphoneOn,
-                participant.microphoneOn ? microphoneIcon() : microphoneOffIcon(),
-              )}
-              ${mediaState(LABELS.camera, participant.cameraOn, participant.cameraOn ? cameraIcon() : cameraOffIcon())}
+            <span class="svk-participant-body">
+              <span class="svk-participant-name" title=${participant.name}
+                >${participant.name}${participant.isSelf ? ` ${LABELS.you}` : ""}</span
+              >
+              <span class="svk-participant-meta">
+                <span class="svk-text">${participant.role === "host" ? LABELS.host : LABELS.participant}</span>
+                <span class="svk-text" data-connection=${participant.connection}
+                  >${CONNECTION_TEXT[participant.connection]}</span
+                >
+              </span>
+              <span class="svk-participant-media">
+                ${mediaState(
+                  LABELS.microphone,
+                  participant.microphoneOn,
+                  participant.microphoneOn ? microphoneIcon() : microphoneOffIcon(),
+                )}
+                ${mediaState(
+                  LABELS.camera,
+                  participant.cameraOn,
+                  participant.cameraOn ? cameraIcon() : cameraOffIcon(),
+                )}
+              </span>
             </span>
           </li>`,
         )}
       </ul>
-    </dialog>`;
+    </aside>`;
   }
+
+  #close = (): void => {
+    this.onClose?.();
+  };
 }
